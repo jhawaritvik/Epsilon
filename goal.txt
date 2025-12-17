@@ -1,0 +1,258 @@
+Autonomous Research System – Agent Flow & Structure
+
+## 🎯 Goal of the System
+
+Conduct **end-to-end research** on a topic:
+
+- explore literature & ideas
+- form hypotheses
+- implement experiments (via Jupyter)
+- analyze results
+- iterate until quality threshold is met
+
+---
+
+## 🧠 Core Agents (WHO does WHAT)
+
+### 1️⃣ Research Exploration Agent
+
+**Role**
+
+- Understand the research topic
+- Explore background concepts
+- Identify gaps, hypotheses, or promising directions
+
+**Inputs**
+
+- Research question / domain
+- Previous iteration context (if any)
+
+**Outputs**
+
+- Research plan
+- Hypotheses
+- Key metrics to evaluate
+- Suggested experiments
+
+**Tools**
+
+- Web search / paper search
+- PDF reader
+- Notes memory (vector store)
+
+---
+
+### 2️⃣ Experiment Design Agent
+
+**Role**
+
+- Convert research ideas into **concrete experiments**
+- Decide datasets, baselines, metrics
+
+**Inputs**
+
+- Hypotheses from Research Agent
+
+**Outputs**
+
+- Experiment specification
+    - model type
+    - dataset
+    - evaluation protocol
+    - expected outcomes
+
+**Tools**
+
+- Dataset catalog
+- Config templates
+- Prior experiment memory
+
+---
+
+### 3️⃣ Code & Notebook Agent
+
+**Role**
+
+- Implement experiments
+- Modify code iteratively
+- Work **inside a Jupyter notebook**
+
+**Inputs**
+
+- Experiment specification
+- Feedback from Evaluation Agent
+
+**Outputs**
+
+- Executable notebook cells
+- Training scripts
+- Visualizations
+
+**Tools**
+
+- Jupyter kernel (critical)
+- Python execution
+- PyTorch / NumPy / plotting
+- File system access
+
+✅ This agent **does not decide if results are good**
+
+---
+
+### 4️⃣ Execution Agent (Non-LLM / Tool Agent)
+
+**Role**
+
+- Run notebook cells
+- Capture logs, metrics, plots
+- Handle crashes / exceptions
+
+**Inputs**
+
+- Notebook from Code Agent
+
+**Outputs**
+
+- Raw results
+- Error traces
+- Metrics artifacts
+
+**Tools**
+
+- Jupyter execution
+- GPU / CPU
+- Runtime monitor
+
+⚠️ This is often **not an LLM**, just a tool wrapper.
+
+---
+
+### 5️⃣ Evaluation & Decision Agent
+
+**Role**
+
+- Critically evaluate research progress and outputs
+- Judge **quality, correctness, and usefulness** of results
+- Recommend the **next research action**
+- Enforce stopping and iteration criteria
+
+> This agent thinks and judges — it does not act or execute.
+> 
+
+---
+
+**Inputs**
+
+- Evaluation artifacts
+    - Metrics (loss curves, accuracy, error norms, etc.)
+    - Plots / logs
+    - Experiment summaries
+- Research context
+    - Original problem statement
+    - Hypothesis / objective
+    - Expected theoretical behavior
+- Iteration metadata
+    - Current iteration number
+    - Previous decisions
+
+---
+
+**Outputs**
+
+- **Quality score / verdict**
+    - e.g. `promising`, `inconclusive`, `failed`, `satisfactory`
+- **Decision recommendation**
+    - iterate code implementation
+    - refine method / hypothesis
+    - run new experiment
+    - stop and summarize findings
+- **Rationale**
+    - What worked
+    - What failed
+    - Why the next step is justified
+
+---
+
+**Tools**
+
+- Evaluation rubric
+    - correctness
+    - empirical signal vs noise
+    - theoretical consistency
+    - reproducibility
+- Threshold rules
+    - minimum improvement
+    - max iterations
+    - diminishing returns detection
+- Comparison memory
+    - previous experiment results
+    - trend tracking
+
+---
+
+## 🧭 Control Layer (HOW things flow)
+
+### Controller (Python / LangGraph)
+
+**Responsibilities**
+
+- Maintain global state
+- Route outputs between agents
+- Enforce iteration limits
+- Prevent infinite loops
+
+**State Example**
+
+```json
+{
+"iteration":3,
+"hypothesis":"...",
+"quality_score":0.71,
+"max_iterations":8,
+"status":"iterate"
+}
+```
+
+❗ This is **NOT an agent**
+
+❗ This is **deterministic control**
+
+---
+
+## 🔁 High-Level Flow (SEQUENCE)
+
+1. Research Exploration Agent
+2. Experiment Design Agent
+3. Code & Notebook Agent
+4. Execution Agent
+5. Evaluation & Decision Agent
+6. Controller decides:
+    - loop back to (2) or (3)
+    - or terminate
+
+---
+
+## 🧰 Tool Summary (WHAT is connected)
+
+### LLM Tools
+
+- OpenAI Agent SDK (for agents)
+- Structured outputs (JSON)
+
+### Execution Tools
+
+- Jupyter Notebook kernel
+- Python execution
+- GPU access
+
+### Data Tools
+
+- Dataset loaders
+- File system
+- Experiment logs
+
+### Memory
+
+- Research notes store
+- Experiment history store
+- Failure patterns store
