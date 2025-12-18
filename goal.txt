@@ -52,6 +52,7 @@ Conduct **end-to-end research** on a topic:
 
 **Inputs**
 
+- **User Research Goal** (Original prompt/intent) to guide the overall direction.
 - **Research Corpus Index** & **Topic Summary** from the Research Agent
 - Access to the **Notes Memory** (full-text PDFs and technical snippets)
 
