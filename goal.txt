@@ -18,9 +18,10 @@ Conduct **end-to-end research** on a topic:
 
 **Role**
 
-- Understand the research topic
-- Explore background concepts
-- Identify gaps, hypotheses, or promising directions
+- **Build a high-quality research corpus** for future experiment execution
+- **Targeted Information Gatherer**: Filter and search specifically for highly relevant papers and reports
+- **Deep Dive & Filtered Ingest**: Download core PDFs and capture essential technical data (formulas, benchmarks) while excluding noise
+- **No Inferencing**: Dedicated to building a lean, relevant information base without design or action responsibilities.
 
 **Inputs**
 
@@ -29,16 +30,15 @@ Conduct **end-to-end research** on a topic:
 
 **Outputs**
 
-- Research plan
-- Hypotheses
-- Key metrics to evaluate
-- Suggested experiments
+- **Research Corpus Index**: A structured catalog of all ingested papers, notes, and technical snippets
+- **Topic Summary**: A descriptive map of collected information and its location in memory
+- **Raw Technical Data**: High-fidelity records available for downstream reasoning agents
 
 **Tools**
 
-- Web search / paper search
-- PDF reader
-- Notes memory (vector store)
+- Web search (Tavily)
+- PDF reader (download & extract text)
+- Notes memory (save/search)
 
 ---
 
@@ -46,26 +46,44 @@ Conduct **end-to-end research** on a topic:
 
 **Role**
 
-- Convert research ideas into **concrete experiments**
-- Decide datasets, baselines, metrics
+- **Research-to-Experiment Translation**: Convert the Research Corpus into a concrete, executable experiment design.
+- **Hypothesis & Variable Definition**: Formulate testable hypotheses (H₀, H₁), identify independent/dependent variables, and define controls.
+- **Experimental & Statistical Specification**: Specify architectures, datasets, baselines, metrics, and the statistical analysis plan required for valid evaluation.
 
 **Inputs**
 
-- Hypotheses from Research Agent
+- **Research Corpus Index** & **Topic Summary** from the Research Agent
+- Access to the **Notes Memory** (full-text PDFs and technical snippets)
 
 **Outputs**
 
-- Experiment specification
-    - model type
-    - dataset
-    - evaluation protocol
-    - expected outcomes
+- **Experiment Specification**
+  - Research question
+  - Null & alternative hypotheses (H₀, H₁)
+  - Model architectures & baselines
+  - Dataset selection & preprocessing
+  - Evaluation metrics
+  - Statistical analysis plan (test type, α, assumptions)
 
-**Tools**
+- **Implementation Guide**
+  - Architecture constraints
+  - Hyperparameter ranges
+  - Training & evaluation protocol notes
 
-- Dataset catalog
-- Config templates
-- Prior experiment memory
+**Tools & Frameworks**
+
+- **Corpus Intelligence**:
+    - **Corpus Query Tool**: Semantic search over stored notes and paper extracts.
+    - **Source Cross-Referencing**: Tooling to link hypotheses to specific note IDs.
+- **Experimental Logic**:
+    - **Notebook Blueprinting**: Templates for structured Jupyter experimentation.
+    - **Dataset Catalog**: Registry of available local and remote datasets (HuggingFace, etc.).
+- **Statistical Specification Suite**:
+    - **Test Selector**: Logic to choose between parametric (T-test, ANOVA) and non-parametric (Mann-Whitney, Kruskal-Wallis) tests.
+    - **Power Analysis Tool**: Determining required sample sizes for statistical significance.
+    - **Assumption Validator Schema**: Pre-defining the checks for Normality, Homoscedasticity, and Independence.
+- **Memory**:
+    - **Experiment History**: Access to results and failures of previous iterations.
 
 ---
 
@@ -127,49 +145,40 @@ Conduct **end-to-end research** on a topic:
 
 ---
 
-### 5️⃣ Evaluation & Decision Agent
+### 5️⃣ Evaluation / Analysis Agent
 
 **Role**
 
-- Critically evaluate research progress and outputs
-- Judge **quality, correctness, and usefulness** of results
-- Recommend the **next research action**
-- Enforce stopping and iteration criteria
+- **Enforce Scientific Rigor**: Critically evaluate results using statistical methods.
+- **Statistical Execution**: Execute the tests defined by the Design Agent.
+- **Validation & Decision**: Judge **quality, correctness, and robustness** of results.
+- Recommend the **next research action** based on statistical confidence.
 
-> This agent thinks and judges — it does not act or execute.
-> 
+> This agent thinks, calculates, and judges — it does not act or execute experiment code.
 
 ---
 
 **Inputs**
 
-- Evaluation artifacts
-    - Metrics (loss curves, accuracy, error norms, etc.)
+- **Analysis Protocol** from the Design Agent.
+- **Evaluation artifacts**
+    - Raw Metrics & results
     - Plots / logs
     - Experiment summaries
-- Research context
-    - Original problem statement
-    - Hypothesis / objective
-    - Expected theoretical behavior
-- Iteration metadata
-    - Current iteration number
-    - Previous decisions
+- **Research context** (Problem statement, $H_0$/$H_1$)
 
 ---
 
 **Outputs**
 
-- **Quality score / verdict**
-    - e.g. `promising`, `inconclusive`, `failed`, `satisfactory`
-- **Decision recommendation**
-    - iterate code implementation
-    - refine method / hypothesis
-    - run new experiment
-    - stop and summarize findings
-- **Rationale**
-    - What worked
-    - What failed
-    - Why the next step is justified
+- **Statistical Verdict**:
+    - Calculated **p-values, confidence intervals, and effect sizes**.
+    - **Assumption Check**: Verification of normality, independence, and variance ($O(n^2)$ is not what we mean here, but checking for bias).
+- **Quality Score / Verdict**: 
+    - `Reject H₀` / `Fail to reject H₀`
+    - Decisions: `robust`, `spurious`, `promising`, `failed`.
+- **Decision recommendation**: iterate, refine, or stop.
+- **Rationale**: Why the results are (or aren't) statistically significant.
 
 ---
 
