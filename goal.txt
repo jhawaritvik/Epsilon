@@ -90,17 +90,16 @@ The **Code & Execution Agent** is responsible for the **deterministic realizatio
 - **Specification Loyalty**: Treat the specification as authoritative and immutable; implement *exactly* what is defined.
 
 ##### 2. Dataset Resolution (Execution-Level)
-- **Constraint Satisfaction**: Resolve dataset requirements into a concrete instance (e.g., HF dataset or local path).
+- **Constraint Satisfaction**: Resolve dataset requirements into a concrete instance. Supports **HuggingFace Hub search** and **Procedural Sampling** (for PINNs).
 - **Validation**: Select a dataset *only* if it strictly satisfies all scientific constraints (sample size, task type, etc.).
-- **Traceability**: Log resolved dataset metadata (commit hash, version, counts) for reproducibility.
+- **Traceability**: Log resolved dataset metadata (`dataset_used.json`) for reproducibility.
 
-##### 3. Autonomous Execution
-- **Artifact Generation**: Produce `run_experiment.py` (default) or `.ipynb` notebooks (if explicitly requested).
-- **Runtime Management**: Execute artifacts autonomously using a controlled runtime environment.
-- **Iteration Support**: Support repeated execution strictly when directed by Evaluation Agent feedback.
+##### 3. Autonomous Execution & Self-Correction
+- **Sandboxed Runtime**: Execute all experiments inside an isolated `experiments/` directory to protect the core repository.
+- **Iterative Debugging**: Use an **Autonomic Self-Correction Loop** (up to 5 retries) to fix implementation bugs (imports, shape mismatches, autograd nuances) by analyzing stack traces.
 
 ##### 4. Evidence Generation (Raw Data)
-- **Artifact Production**: Persist raw experimental evidence to disk in structured, machine-readable formats.
+- **Artifact Production**: Persist raw experimental evidence (metrics, logs) in structured, machine-readable formats.
 - **Data Integrity**: Ensure all outputs are reproducible, timestamped, and traceable.
 
 ---
@@ -108,14 +107,14 @@ The **Code & Execution Agent** is responsible for the **deterministic realizatio
 #### Inputs
 
 - **Experiment Specification (JSON)**: The single source of truth for research questions, hypotheses, variables, model design, and dataset requirements.
-- **Statistical Analysis Plan**: Grounding for identifying what specific metrics and granularity (e.g., per-sample vs aggregate) must be logged.
+- **Statistical Analysis Plan**: Grounding for identifying what specific metrics and granularity must be logged.
 - **Revision Directives (JSON)**: Optional instructions from the Evaluation Agent for additional runs or logging adjustments.
 
 ---
 
 #### Outputs
 
-- **Primary Artifacts**:
+- **Primary Artifacts** (Saved in `experiments/`):
   - `run_experiment.py`: The executable experiment logic.
   - `dataset_used.json`: Resolution record (name, version, sample counts, verification).
   - `raw_results.{json|csv}`: Per-run, per-seed metrics ONLY (no aggregation).
@@ -126,12 +125,20 @@ The **Code & Execution Agent** is responsible for the **deterministic realizatio
 
 ---
 
-#### Capabilities & Infrastructure
+#### Capabilities & Tools
 
-- **Execution Environment**: Python runtime with deterministic execution (explicit seed control) and CPU/GPU orchestration.
-- **Machine Learning Stack**: Access to PyTorch, NumPy, and Dataset loaders (HuggingFace, torchvision, etc.).
-- **File System Access**: Persistent storage and retrieval of all experiment artifacts.
-- **Runtime Libraries**: `python`, `torch`, `numpy`, `json`, `logging`, `nbclient` (optional).
+- **Tool: `dataset_resolver`**: Searches HuggingFace Hub or flags for synthetic data generation based on Scientist requirements.
+- **Tool: `execute_experiment`**: Orchestrates the sandboxed execution environment and captures all runtime telemetry.
+- **Machine Learning Stack**: Deep integration with `torch` (explicit seed control), `numpy`, and `datasets`.
+
+---
+
+#### Internal Process (The Loop)
+1. **Resolve**: Call `dataset_resolver` to identify the data source (HF vs. Internal).
+2. **Translate**: Convert the JSON Experiment Specification into a standalone `run_experiment.py` script.
+3. **Execute**: Run the script inside the sandboxed `experiments/` directory.
+4. **Debug**: If failure occurs, inspect `execution.log`, diagnose the root cause (e.g. autograd leaf nuances), and fix the code.
+5. **Finalize**: Produce the final results bundle (`raw_results.json`, `execution.log`, `dataset_used.json`).
 
 ---
 
@@ -140,7 +147,7 @@ The **Code & Execution Agent** is responsible for the **deterministic realizatio
 - ❗ **No Design Authority**: Never modify hypotheses, variables, or scientific requirements.
 - ❗ **No Statistical Authority**: Never compute p-values, perform hypothesis tests, or aggregate results.
 - ❗ **No Interpretation**: Never judge experiment quality or suggest improvements.
-- ❗ **Halt on Ambiguity**: If the specification is incomplete or inconsistent, must stop execution and await clarification.
+- ❗ **Halt on Retries**: Stop and report to the user if the bug persists after 5 self-correction attempts.
 
 ---
 
