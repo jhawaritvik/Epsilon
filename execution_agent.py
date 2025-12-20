@@ -26,59 +26,80 @@ def _ensure_experiment_dir():
         os.makedirs(EXPERIMENT_DIR)
 
 @function_tool
-def dataset_resolver(task_type: str, benchmark_family: str, minimum_samples: int = None) -> str:
+def dataset_resolver(
+    data_modality_json: str,
+    dataset_requirements_json: str = None
+) -> str:
     """
-    Resolves dataset requirements into a concrete dataset instance.
-    Supports HuggingFace search or internal/synthetic data flagging.
-    Returns a JSON string with the resolved dataset details.
+    Resolves data acquisition STRICTLY from explicit design signals.
+    Inputs are JSON strings to comply with strict schema requirements.
     """
-    logger.info(f"dataset_resolver called: task={task_type}, family={benchmark_family}")
+    logger.info("dataset_resolver called")
     _ensure_experiment_dir()
-    
-    # Handle synthetic/PINN cases
-    if any(keyword in benchmark_family.lower() for keyword in ["synthetic", "pinn", "procedural", "internal"]):
-        resolved = {
-            "dataset_source": "internal",
-            "benchmark_family": benchmark_family,
-            "status": "resolved",
-            "instruction": "Data must be generated procedurally by the experiment code."
-        }
-        # Return early, no need to search HF
-    else:
-        # Simple HuggingFace search simulation
+
+    data_modality = json.loads(data_modality_json)
+    dataset_requirements = (
+        json.loads(dataset_requirements_json)
+        if dataset_requirements_json else None
+    )
+
+    modality_type = data_modality.get("type")
+
+    if modality_type == "external":
+        source = data_modality.get("source_family")
+        if not source:
+            raise RuntimeError("Missing source_family for external data modality")
+
         try:
             from huggingface_hub import list_datasets
-            # We search for the benchmark family
-            search_results = list(list_datasets(filter=task_type, search=benchmark_family, limit=1))
-            
-            if search_results:
-                best_match = search_results[0]
-                resolved = {
-                    "dataset_source": "huggingface",
-                    "dataset_id": best_match.id,
-                    "version": best_match.last_modified,
-                    "status": "resolved",
-                    "verification": f"Found match on HF: {best_match.id}"
-                }
-            else:
-                resolved = {
-                    "dataset_source": "huggingface",
-                    "dataset_id": benchmark_family.lower(),
-                    "status": "provisional",
-                    "note": "Exact HF match not found via search API; using family name as ID."
-                }
-        except Exception as e:
-            logger.warning(f"HF search failed, using fallback: {e}")
+            results = list(list_datasets(search=source, limit=1))
+
+            if not results:
+                raise RuntimeError(
+                    "No dataset satisfies dataset_requirements. "
+                    "Escalate to Evaluation → Design."
+                )
+
+            ds = results[0]
             resolved = {
-                "dataset_source": "provisional",
-                "dataset_id": benchmark_family.lower(),
+                "dataset_source": "huggingface",
+                "dataset_id": ds.id,
+                "version": ds.last_modified,
                 "status": "resolved"
             }
-    
-    file_path = os.path.join(EXPERIMENT_DIR, "dataset_used.json")
-    with open(file_path, "w") as f:
+
+        except Exception as e:
+            raise RuntimeError(f"Dataset resolution failed: {e}")
+
+    elif modality_type == "procedural":
+        resolved = {
+            "dataset_source": "procedural",
+            "generation_method": data_modality.get("generation_method"),
+            "parameters": data_modality,
+            "status": "resolved",
+            "instruction": "Generate data procedurally inside experiment code."
+        }
+
+    elif modality_type == "simulation":
+        resolved = {
+            "dataset_source": "simulation",
+            "generator": data_modality.get("generator"),
+            "parameters": data_modality,
+            "status": "resolved"
+        }
+
+    else:
+        raise RuntimeError(
+            f"Unsupported data_modality.type: {modality_type}"
+        )
+
+    if dataset_requirements:
+        resolved["requirements"] = dataset_requirements
+
+    path = os.path.join(EXPERIMENT_DIR, "dataset_used.json")
+    with open(path, "w") as f:
         json.dump(resolved, f, indent=2)
-        
+
     return json.dumps(resolved, indent=2)
 
 @function_tool
@@ -131,11 +152,22 @@ You are the **Code & Execution Agent** (The Lab Technician).
 
 Your role is the **deterministic realization** of an experiment defined by the **Experiment Design Agent**.
 
+**The Correct Compromise (This Is the Lock)**:
+The Code Agent does not decide how data should be obtained; it infers the data acquisition mechanism exclusively from explicit design signals and executes it deterministically.
+
 **Your Responsibilities**:
 1. **Deterministic Implementation**: Translate the provided Experiment Specification (JSON) into a standalone Python script (`run_experiment.py`).
 2. **Dataset Resolution**: Use the `dataset_resolver` tool to identify the data source.
-   - If `dataset_source` is `huggingface`, use `datasets.load_dataset` in your code.
-   - If `dataset_source` is `internal`, write the procedural code to generate the training/testing data (e.g., for PINNs or simulations).
+   - You MUST pass the `data_modality` and `dataset_requirements` as **JSON strings** (use `json.dumps`).
+   - **Allowed Actions based on `data_modality.type`**:
+     - `external` → load dataset (e.g. huggingface)
+     - `procedural` → generate samples (implement generation logic)
+     - `simulation` → run solver
+   - **Not Allowed**:
+     - Decide whether data should be procedural
+     - Override modality
+     - "Fallback" to synthetic data
+     - Mix modes without instruction
 3. **Autonomous Execution**: Use the `execute_experiment` tool to run your generated code and capture the results.
 4. **Self-Correction**: If execution fails, you MUST diagnose the specific error from the logs and regenerate the code to fix it.
 5. **Evidence Generation**: Ensure all outputs (metrics, logs) are saved as machine-readable artifacts.
@@ -149,14 +181,14 @@ Your role is the **deterministic realization** of an experiment defined by the *
 
 **Process**:
 1. Read the Experiment Specification.
-2. Call `dataset_resolver` with the dataset requirements.
+2. Call `dataset_resolver` with `json.dumps(data_modality)` and `json.dumps(dataset_requirements)`.
 3. Generate the Python code for the experiment:
-   - Handle data loading/generation based on resolution.
+   - Handle data loading/generation based ONLY on resolution result.
    - Log raw metrics to `raw_results.json`.
 4. Call `execute_experiment` with the generated code.
 5. **Iterative Debugging**:
    - If `execute_experiment` returns a failure, READ the error message carefully.
-   - ANALYZE why it failed (e.g., missing imports, shape mismatch, API change).
+   - ANALYZE why it failed.
    - REGENERATE the `run_experiment.py` code with specific fixes.
    - CALL `execute_experiment` again.
    - Repeat up to 5 times.
@@ -199,8 +231,12 @@ if __name__ == "__main__":
             },
             "dataset_requirements": {
                 "task_type": "pde_solving",
-                "benchmark_family": "Synthetic Procedural Sampling",
                 "minimum_samples": 5000
+            },
+            "data_modality": {
+                "type": "procedural",
+                "generation_method": "uniform_collocation_sampling",
+                "domain": "x ∈ [0,1], t ∈ [0,1]"
             }
         },
         "statistical_analysis_plan": {

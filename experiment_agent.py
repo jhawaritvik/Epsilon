@@ -100,9 +100,13 @@ Required Output Schema:
     },
     "dataset_requirements": {
       "task_type": "",
-      "benchmark_family": "",
-      "minimum_samples": null,
-      "splits_required": []
+      "minimum_samples": null
+    },
+    "data_modality": {
+      "type": "external | procedural | simulation",
+      "source_family": "Optional: IF type=external",
+      "generation_method": "Optional: IF type=procedural",
+      "description": ""
     }
   },
   "statistical_analysis_plan": {
