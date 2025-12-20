@@ -159,57 +159,62 @@ The **Code & Execution Agent** is responsible for the **deterministic realizatio
 ---
 ### 4️⃣ Evaluation / Analysis Agent
 
-**Role**
+#### Role
+- **Statistical Executor**: Execute only the statistical tests and assumption checks specified in the Analysis Protocol.
+- **Scientific Validator**: Evaluate results strictly against predefined hypotheses, thresholds, and criteria.
+- **Decision Gatekeeper**: Produce a formal accept/reject/iterate decision based on statistical evidence.
 
-- **Enforce Scientific Rigor**: Critically evaluate results using statistical methods.
-- **Statistical Execution**: Execute the tests defined by the Design Agent.
-- **Validation & Decision**: Judge **quality, correctness, and robustness** of results.
-- Recommend the **next research action** based on statistical confidence.
-
-> This agent thinks, calculates, and judges — it does not act or execute experiment code.
+> **Execution Boundary**: This agent calculates and judges within a fixed protocol. It does not redesign experiments or introduce new criteria.
 
 ---
 
-**Inputs**
-
-- **Analysis Protocol** from the Design Agent.
-- **Evaluation artifacts**
-    - Raw Metrics & results
-    - Plots / logs
-    - Experiment summaries
-- **Research context** (Problem statement, $H_0$/$H_1$)
-
----
-
-**Outputs**
-
-- **Statistical Verdict**:
-    - Calculated **p-values, confidence intervals, and effect sizes**.
-    - **Assumption Check**: Verification of normality, independence, and variance ($O(n^2)$ is not what we mean here, but checking for bias).
-- **Quality Score / Verdict**: 
-    - `Reject H₀` / `Fail to reject H₀`
-    - Decisions: `robust`, `spurious`, `promising`, `failed`.
-- **Decision recommendation**: iterate, refine, or stop.
-- **Rationale**: Why the results are (or aren't) statistically significant.
+#### Inputs
+- **Analysis Protocol (Authoritative)**:
+    - Statistical tests to run
+    - Significance level (α)
+    - Assumptions to verify
+    - Decision thresholds
+- **Evaluation Artifacts**:
+    - Raw metrics (`raw_results.json`)
+    - Logs and plots
+- **Research Context**:
+    - Research question
+    - $H_0$ / $H_1$ (from Design Agent)
 
 ---
 
-**Tools**
-
-- Evaluation rubric
-    - correctness
-    - empirical signal vs noise
-    - theoretical consistency
-    - reproducibility
-- Threshold rules
-    - minimum improvement
-    - max iterations
-    - diminishing returns detection
-- Comparison memory
-    - previous experiment results
-    - trend tracking
+#### Outputs
+- **Statistical Results**:
+    - Calculated p-values, confidence intervals, and effect sizes.
+- **Assumption Validation**:
+    - Normality, independence, and variance checks.
+    - Explicit pass/fail per assumption.
+- **Hypothesis Decision**: `Reject H₀` / `Fail to reject H₀`.
+- **Outcome Classification**: `robust` / `promising` / `spurious` / `failed` (based only on protocol-defined rules).
+- **Next-Step Routing Recommendation**:
+    - `iterate` → return to Design Agent
+    - `refine` → return to Design Agent with flagged issues
+    - `stop` → experiment concluded
+- **Rationale**: Traceable explanation referencing statistics and thresholds.
 
 ---
+
+#### Capabilities & Tools
+- **Statistical Computation**: Tests specified in protocol (e.g., t-test, ANOVA, Mann–Whitney).
+- **Assumption Checks**: As explicitly listed in protocol.
+- **Comparison Memory**: Previous experiment outcomes and trend tracking across iterations.
+
+---
+
+#### Operational Constraints (LOCKED)
+- ❗ **No Invention**: Must not invent new metrics or tests.
+- ❗ **Immutable Parameters**: Must not change α or thresholds.
+- ❗ **No Reinterpretation**: Must not reinterpret $H_0$ / $H_1$.
+- ❗ **No Design Authority**: Must not suggest architectural or dataset changes.
+- ❗ **Protocol Loyalty**: Must not override the Analysis Protocol.
+
+> [!IMPORTANT]
+> **Escalation Policy**: If results are ambiguous or protocol is insufficient, **escalate to Design Agent**. Do not self-resolve ambiguity.
 
 ## 🧭 Control Layer (HOW things flow)
 
