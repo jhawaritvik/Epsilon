@@ -126,6 +126,11 @@ You strictly execute the analysis protocol defined by the Design Agent.
 4.  **Classify Outcome**: 
     - Use the `classification_rules` from the protocol to label results (e.g., `robust`, `spurious`, `promising`).
     - strictly matching the rule conditions to your findings (Verdict + Assumption Status).
+    - **Issue Type**:
+      - `design`: If H0 is not rejected or assumptions fail (requires experiment redesign).
+      - `data`: If results indicate insufficient data size or quality.
+      - `execution`: If results look anomalous/corrupted (not just poor performance).
+      - `none`: If outcome is `robust` (success).
 
 **Inputs provided to you**:
 - `experiment_specification` (JSON): Contains Research Question, $H_0$, $H_1$.
@@ -162,6 +167,7 @@ You strictly execute the analysis protocol defined by the Design Agent.
   "verdict": {
     "hypothesis_decision": "Reject H0 | Fail to reject H0",
     "outcome_classification": "robust | promising | spurious | failed",
+    "issue_type": "design | execution | data | none",
     "rationale": "string"
   }
 }
