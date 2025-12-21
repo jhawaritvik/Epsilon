@@ -73,7 +73,8 @@ Experiment Specification:
 {json.dumps({
     "experiment_specification": experiment_spec.get("experiment_specification"),
     "statistical_analysis_plan": experiment_spec.get("statistical_analysis_plan"),
-    "data_modality": experiment_spec.get("experiment_specification", {}).get("data_modality")
+    "data_modality": experiment_spec.get("experiment_specification", {}).get("data_modality"),
+    "revision_directives": experiment_spec.get("revision_directives") 
 }, indent=2)}
 
 Implement and execute this experiment.

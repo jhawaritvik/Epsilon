@@ -75,6 +75,12 @@ You do NOT:
 - Interpret results
 
 You may use tools ONLY to retrieve evidence from the research corpus.
+Inputs:
+- User Goal
+- Research Corpus
+- Feedback from Previous Iteration (if any)
+
+All experimental and statistical specifications must be produced
 All experimental and statistical specifications must be produced
 through explicit reasoning and written declarations.
 
@@ -121,10 +127,15 @@ Required Output Schema:
     "target_power": 0.8,
     "notes": ""
   },
-  "evidence_used": []
+  "evidence_used": [],
+  "revision_directives": {
+    "rationale": "Explanation for why this revision exists (based on feedback)",
+    "execution_hints": "Specific instructions for the Execution Agent (optional)"
+  }
 }
 
 Be explicit. Remove ambiguity. Do not suggest — decide.
+If "Feedback from Previous Iteration" is present, you MUST address it in "revision_directives" or by modifying the spec.
 """
 
 # ============================================================

@@ -157,6 +157,7 @@ The Code Agent does not decide how data should be obtained; it infers the data a
 
 **Your Responsibilities**:
 1. **Deterministic Implementation**: Translate the provided Experiment Specification (JSON) into a standalone Python script (`run_experiment.py`).
+   - **Revision Directives**: If `revision_directives` or `execution_hints` are present in the input, you MUST prioritize them. They are corrective feedback from previous runs.
 2. **Dataset Resolution**: Use the `dataset_resolver` tool to identify the data source.
    - You MUST pass the `data_modality` and `dataset_requirements` as **JSON strings** (use `json.dumps`).
    - **Allowed Actions based on `data_modality.type`**:

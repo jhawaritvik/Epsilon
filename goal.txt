@@ -216,66 +216,184 @@ The **Code & Execution Agent** is responsible for the **deterministic realizatio
 > [!IMPORTANT]
 > **Escalation Policy**: If results are ambiguous or protocol is insufficient, **escalate to Design Agent**. Do not self-resolve ambiguity.
 
-## 🧭 Control Layer (HOW things flow)
 
-### Controller (Python / LangGraph)
 
-**Responsibilities**
 
-- Maintain global state
-- Route outputs between agents
-- Enforce iteration limits
-- Prevent infinite loops
 
-**State Example**
+🧭 Controller / Control Layer — Reference Specification
+Purpose (LOCKED)
 
-```json
+The Controller is a deterministic orchestration layer responsible for:
+
+Routing execution between agents
+
+Maintaining global state
+
+Enforcing stopping conditions
+
+Preventing infinite loops
+
+❗ The controller is NOT an agent
+❗ The controller does NOT use an LLM
+❗ The controller does NOT reason or interpret
+
+Core Principle (Non-Negotiable)
+
+Agents emit signals.
+The controller routes execution.
+
+Agents never call each other.
+Agents never decide the next step.
+
+Controller Responsibilities
+1️⃣ Global State Management
+
+The controller owns and updates a single authoritative state object.
+
+Required State Fields
 {
-"iteration":3,
-"hypothesis":"...",
-"quality_score":0.71,
-"max_iterations":8,
-"status":"iterate"
+  "iteration": 0,
+  "max_iterations": 8,
+  "last_agent": "design",
+  "verdict": null,
+  "issue_type": null,
+  "status": "running"
 }
-```
 
-❗ This is **NOT an agent**
+Notes
 
-❗ This is **deterministic control**
+iteration increments only after Evaluation
 
----
+verdict comes only from Evaluation Agent
 
-## 🔁 High-Level Flow (SEQUENCE)
+issue_type comes only from Evaluation or Code Agent
 
-1. **Research Exploration Agent**: Build corpus and technical index.
-2. **Experiment Design Agent**: Translate research into formal JSON specification.
-3. **Code & Execution Agent**: Implement and execute experiments in Jupyter.
-4. **Evaluation & Analysis Agent**: Statistically validate results and decide next steps.
-5. **Controller**: Decide whether to iterate (loop to 2 or 3) or terminate.
+status ∈ { running, iterate, stop }
 
----
+2️⃣ Deterministic Routing (Core Job)
 
-## 🧰 Tool Summary (WHAT is connected)
+Routing is a pure function:
 
-### LLM Tools
+next_agent = route(state)
 
-- OpenAI Agent SDK (for agents)
-- Structured outputs (JSON)
 
-### Execution Tools
+No randomness.
+No LLM calls.
+No interpretation.
 
-- Jupyter Notebook kernel
-- Python execution
-- GPU access
+Routing Rules (Authoritative)
+Hard Stop Conditions (Checked First)
+IF verdict == "robust" → STOP
+IF iteration >= max_iterations → STOP
 
-### Data Tools
+Iteration Routing Table
+Signal Source	Condition	Next Agent
+Evaluation	issue_type == "execution"	Code
+Evaluation	issue_type == "design"	Design
+Evaluation	issue_type == "data"	Research
+Evaluation	verdict ∈ {promising, spurious, failed}	Iterate
+Code	execution_failed == true	Code
+Design	spec_incomplete == true	Research
+Default Fallback
+IF no rule matches → STOP
 
-- Dataset loaders
-- File system
-- Experiment logs
 
-### Memory
+Fail safe, never loop blindly.
 
-- Research notes store
-- Experiment history store
-- Failure patterns store
+Canonical Controller Loop (Conceptual)
+state = initialize_state()
+
+while state["status"] != "stop":
+
+    agent = select_next_agent(state)
+    output = run_agent(agent, state)
+
+    state = update_state(state, output)
+
+    if should_stop(state):
+        state["status"] = "stop"
+
+State Update Rules
+After Evaluation Agent
+state["iteration"] += 1
+state["verdict"] = evaluation_output["verdict"]
+state["issue_type"] = evaluation_output.get("issue_type")
+
+After Code Agent
+state["issue_type"] = "execution" if execution_failed else None
+
+After Design Agent
+state["issue_type"] = "design" if spec_incomplete else None
+
+Controller Guarantees
+
+The controller guarantees:
+
+✅ Finite execution
+
+✅ Reproducible flow
+
+✅ Explicit termination
+
+✅ Zero hallucinated routing
+
+✅ Full auditability
+
+Explicit Non-Responsibilities
+
+The controller must never:
+
+❌ Inspect raw metrics
+
+❌ Interpret statistics
+
+❌ Modify experiment design
+
+❌ Modify code
+
+❌ Use an LLM
+
+❌ Decide scientific validity
+
+Error Handling (Deterministic)
+Invalid Agent Output
+IF agent output schema invalid → STOP + LOG ERROR
+
+Repeated Failures
+IF same issue_type repeats N times → STOP
+
+
+(N is fixed, e.g. 3)
+
+Logging Requirements (Mandatory)
+
+Each iteration logs:
+
+{
+  "iteration": 3,
+  "agent_run": "evaluation",
+  "verdict": "spurious",
+  "issue_type": "design",
+  "next_agent": "design"
+}
+
+
+This enables:
+
+Replay
+
+Debugging
+
+Cost accounting
+
+Why the Controller Is Deterministic (Rationale)
+
+Routing decisions are rule-based
+
+Inputs are structured
+
+Output space is finite
+
+LLMs add cost + nondeterminism
+
+Determinism enables scientific reproducibility
