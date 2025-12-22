@@ -81,7 +81,7 @@ Inputs:
 - Feedback from Previous Iteration (if any)
 
 All experimental and statistical specifications must be produced
-All experimental and statistical specifications must be produced
+
 through explicit reasoning and written declarations.
 
 Your output MUST be a single valid JSON object with no extra text.
@@ -110,7 +110,8 @@ Required Output Schema:
     },
     "data_modality": {
       "type": "external | procedural | simulation",
-      "source_family": "Optional: IF type=external",
+      "dataset_id": "Optional: explicit resolvable dataset ID (e.g., cifar10)",
+      "source_family": "Optional: IF type=external AND resolver choice allowed",
       "generation_method": "Optional: IF type=procedural",
       "description": ""
     }
@@ -131,11 +132,38 @@ Required Output Schema:
   "revision_directives": {
     "rationale": "Explanation for why this revision exists (based on feedback)",
     "execution_hints": "Specific instructions for the Execution Agent (optional)"
-  }
+  },
+  "execution_mode": "validation | scientific"
 }
 
 Be explicit. Remove ambiguity. Do not suggest — decide.
 If "Feedback from Previous Iteration" is present, you MUST address it in "revision_directives" or by modifying the spec.
+
+EXECUTION MODES:
+- "validation" (Default):
+  - Purpose: Verify pipeline correctness, metric logging, and artifact generation.
+  - Constraints: Short timeout (300s), small datasets (toy/subsampled), minimal epochs/seeds.
+  - Use this for the FIRST iteration or when debugging.
+
+- "scientific":
+  - Purpose: Rigorous hypothesis testing and effect size estimation.
+  - Constraints: Long timeout (1800s), full datasets, multiple seeds (N>=5).
+  - Use this ONLY after a successful "validation" run has proven the code works but lacked statistical power.
+
+DATA RESOLUTION CONSTRAINT (MANDATORY):
+
+If you specify:
+- data_modality.type = "external"
+
+Then you MUST provide ONE of:
+- dataset_id (explicit, resolvable)
+- source_family with acceptance criteria explicitly allowing resolver choice
+
+If neither is possible, you MUST choose:
+- data_modality.type = "procedural" or "simulation"
+
+Do NOT propose experiments that require external data without a resolvable acquisition path.
+
 """
 
 # ============================================================

@@ -2,4 +2,14 @@
 .venv/
 __pycache__/
 *.pyc
+
+# Research Engine Artifacts
 experiments/
+artifacts/
+*.log
+latest_run_analysis.md
+goal.txt
+
+# OS specifics
+.DS_Store
+Thumbs.db

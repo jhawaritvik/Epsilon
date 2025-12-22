@@ -46,30 +46,42 @@ def dataset_resolver(
     modality_type = data_modality.get("type")
 
     if modality_type == "external":
-        source = data_modality.get("source_family")
-        if not source:
-            raise RuntimeError("Missing source_family for external data modality")
-
-        try:
-            from huggingface_hub import list_datasets
-            results = list(list_datasets(search=source, limit=1))
-
-            if not results:
-                raise RuntimeError(
-                    "No dataset satisfies dataset_requirements. "
-                    "Escalate to Evaluation → Design."
-                )
-
-            ds = results[0]
-            resolved = {
+        # PATH A: Explicit ID provided (User Requirement)
+        dataset_id = data_modality.get("dataset_id")
+        if dataset_id:
+             resolved = {
                 "dataset_source": "huggingface",
-                "dataset_id": ds.id,
-                "version": ds.last_modified,
+                "dataset_id": dataset_id,
+                "version": "latest", # We assume latest if explicit ID is given
                 "status": "resolved"
             }
+        
+        # PATH B: Family search (Fallback)
+        else:
+            source = data_modality.get("source_family")
+            if not source:
+                raise RuntimeError("Missing source_family or dataset_id for external data modality")
 
-        except Exception as e:
-            raise RuntimeError(f"Dataset resolution failed: {e}")
+            try:
+                from huggingface_hub import list_datasets
+                results = list(list_datasets(search=source, limit=1))
+
+                if not results:
+                    raise RuntimeError(
+                        "No dataset satisfies dataset_requirements. "
+                        "Escalate to Evaluation → Design."
+                    )
+
+                ds = results[0]
+                resolved = {
+                    "dataset_source": "huggingface",
+                    "dataset_id": ds.id,
+                    "version": ds.last_modified,
+                    "status": "resolved"
+                }
+
+            except Exception as e:
+                raise RuntimeError(f"Dataset resolution failed: {e}")
 
     elif modality_type == "procedural":
         resolved = {
@@ -103,17 +115,23 @@ def dataset_resolver(
     return json.dumps(resolved, indent=2)
 
 @function_tool
-def execute_experiment(code: str) -> str:
+def execute_experiment(code: str, execution_mode: str = "validation") -> str:
     """
     Saves the provided Python code to 'run_experiment.py' and executes it.
     Captures stdout, stderr, and returns the execution summary.
     """
-    logger.info("execute_experiment called")
+    # Use explicit argument
+    logger.info(f"execute_experiment called (mode={execution_mode})")
     _ensure_experiment_dir()
     
     file_path = os.path.join(EXPERIMENT_DIR, "run_experiment.py")
     with open(file_path, "w") as f:
         f.write(code)
+        
+    # Set timeout based on mode
+    timeout_seconds = 300 # Default / Validation
+    if execution_mode == "scientific":
+        timeout_seconds = 1800 # 30 mins
     
     try:
         # Execute the script INSIDE the experiments directory
@@ -123,7 +141,7 @@ def execute_experiment(code: str) -> str:
             cwd=EXPERIMENT_DIR,
             capture_output=True,
             text=True,
-            timeout=300 # 5 minute timeout
+            timeout=timeout_seconds
         )
         
         execution_log = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
@@ -169,7 +187,9 @@ The Code Agent does not decide how data should be obtained; it infers the data a
      - Override modality
      - "Fallback" to synthetic data
      - Mix modes without instruction
-3. **Autonomous Execution**: Use the `execute_experiment` tool to run your generated code and capture the results.
+3. **Autonomous Execution**: Use the `execute_experiment` tool to run your generated code.
+   - You MUST pass the `execution_mode` provided in the input (default to "validation").
+   - `execute_experiment(code=..., execution_mode=...)`
 4. **Self-Correction**: If execution fails, you MUST diagnose the specific error from the logs and regenerate the code to fix it.
 5. **Evidence Generation**: Ensure all outputs (metrics, logs) are saved as machine-readable artifacts.
 
@@ -186,12 +206,12 @@ The Code Agent does not decide how data should be obtained; it infers the data a
 3. Generate the Python code for the experiment:
    - Handle data loading/generation based ONLY on resolution result.
    - Log raw metrics to `raw_results.json`.
-4. Call `execute_experiment` with the generated code.
+4. Call `execute_experiment` with the generated code and the `execution_mode` from the input.
 5. **Iterative Debugging**:
    - If `execute_experiment` returns a failure, READ the error message carefully.
    - ANALYZE why it failed.
    - REGENERATE the `run_experiment.py` code with specific fixes.
-   - CALL `execute_experiment` again.
+   - CALL `execute_experiment` again (preserving mode).
    - Repeat up to 5 times.
 6. Confirm all artifacts (`run_experiment.py`, `dataset_used.json`, `raw_results.json`, `execution.log`) are produced.
 

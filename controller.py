@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import os
 from typing import Dict, Any, Optional
 
 from agents import Runner
@@ -39,6 +40,7 @@ class ResearchController:
         
         # --- PHASE 2: EXPERIMENTATION LOOP ---
         while self.current_iteration < self.max_iterations:
+            self.current_iteration += 1
             logger.info(f"--- ATTEMPTING ITERATION (Current Count: {self.current_iteration}/{self.max_iterations}) ---")
             
             # 1. DESIGN
@@ -74,11 +76,17 @@ Experiment Specification:
     "experiment_specification": experiment_spec.get("experiment_specification"),
     "statistical_analysis_plan": experiment_spec.get("statistical_analysis_plan"),
     "data_modality": experiment_spec.get("experiment_specification", {}).get("data_modality"),
-    "revision_directives": experiment_spec.get("revision_directives") 
+    "revision_directives": experiment_spec.get("revision_directives"),
+    "execution_mode": experiment_spec.get("execution_mode", "validation")
 }, indent=2)}
 
 Implement and execute this experiment.
 """
+            # Inject Execution Mode into Environment - REMOVED
+            # mode = experiment_spec.get("execution_mode", "validation")
+            # os.environ["EXECUTION_MODE"] = mode
+            # logger.info(f"Setting EXECUTION_MODE={mode}")
+
             execution_result = Runner.run_sync(code_execution_agent, execution_prompt)
             logger.info(f"Execution Output: {execution_result.final_output}")
             
@@ -115,8 +123,8 @@ Perform the evaluation based on the following context:
                 continue
             
             # --- PHASE 3: CONTROL LOGIC ---
-            # Successful cycle completed, now we increment
-            self.current_iteration += 1
+            # Successful cycle completed
+            # Iteration increment moved to top of loop
             
             verdict = eval_json.get("verdict", {})
             decision = verdict.get("hypothesis_decision")
