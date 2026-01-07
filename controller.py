@@ -2,6 +2,7 @@ import json
 import logging
 import time
 import os
+import uuid
 from typing import Dict, Any, Optional
 
 from agents import Runner
@@ -9,6 +10,10 @@ from research_agent import research_agent
 from experiment_agent import experiment_design_agent
 from execution_agent import code_execution_agent, EXPERIMENT_DIR
 from evaluation_agent import evaluation_agent
+
+# Memory Writers
+from memory.run_memory_writer import RunMemoryWriter
+from memory.knowledge_memory_writer import KnowledgeMemoryWriter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -20,6 +25,13 @@ class ResearchController:
         self.history = []
         self.research_corpus = [] # List of strings/notes
         self.current_iteration = 0
+        
+        # Identity & Memory
+        self.run_id = uuid.uuid4()
+        logger.info(f"Initialized Run ID: {self.run_id}")
+        
+        self.run_memory = RunMemoryWriter()
+        self.knowledge_memory = KnowledgeMemoryWriter()
         
     def run(self, research_goal: str):
         logger.info(f"Starting Research Process for Goal: {research_goal}")
@@ -66,6 +78,16 @@ Design a statistically rigorous experiment.
             except json.JSONDecodeError:
                 logger.error("Failed to parse Experiment Spec. Retrying loop...")
                 feedback = "Critical Error: Your previous output was not valid JSON. You must output ONLY valid JSON."
+                
+                # Record Failed Iteration (Design Failure)
+                self.run_memory.record_iteration(
+                    run_id=self.run_id,
+                    iteration=self.current_iteration,
+                    research_goal=research_goal,
+                    experiment_spec={}, 
+                    evaluation_verdict={"outcome_classification": "failed", "issue_type": "design", "rationale": "Invalid JSON output from Design Agent"},
+                    feedback_passed=feedback
+                )
                 continue
 
             # 2. EXECUTION
@@ -99,6 +121,16 @@ Implement and execute this experiment.
             except FileNotFoundError:
                 logger.error("raw_results.json not found. Execution likely failed.")
                 feedback = "Execution Agent failed to produce 'raw_results.json'. Check code generation."
+                
+                # Record Failed Iteration (Execution Failure)
+                self.run_memory.record_iteration(
+                    run_id=self.run_id,
+                    iteration=self.current_iteration,
+                    research_goal=research_goal,
+                    experiment_spec=experiment_spec,
+                    evaluation_verdict={"outcome_classification": "failed", "issue_type": "execution", "rationale": "Missing raw_results.json"},
+                    feedback_passed=feedback
+                )
                 continue
                 
             evaluation_input = {
@@ -120,16 +152,24 @@ Perform the evaluation based on the following context:
             except json.JSONDecodeError:
                 logger.error("Failed to parse Evaluation Output.")
                 feedback = "Evaluation output was not valid JSON."
+                
+                # Record Failed Iteration (Eval Failure)
+                self.run_memory.record_iteration(
+                    run_id=self.run_id,
+                    iteration=self.current_iteration,
+                    research_goal=research_goal,
+                    experiment_spec=experiment_spec,
+                    evaluation_verdict={"outcome_classification": "failed", "issue_type": "execution", "rationale": "Invalid JSON from Eval Agent"},
+                    feedback_passed=feedback
+                )
                 continue
             
-            # --- PHASE 3: CONTROL LOGIC ---
-            # Successful cycle completed
-            # Iteration increment moved to top of loop
+            # --- PHASE 3: CONTROL LOGIC & MEMORY ---
             
             verdict = eval_json.get("verdict", {})
             decision = verdict.get("hypothesis_decision")
             classification = verdict.get("outcome_classification")
-            issue_type = verdict.get("issue_type", "none") # Default to none if missing
+            issue_type = verdict.get("issue_type", "none") 
             rationale = verdict.get("rationale")
             
             logger.info(f"Routing decision → classification={classification}, issue_type={issue_type}")
@@ -139,6 +179,23 @@ Perform the evaluation based on the following context:
                 print("\n\n🎉 DISCOVERY MADE!")
                 print("Final Spec:", json.dumps(experiment_spec, indent=2))
                 print("Evaluation:", json.dumps(eval_json, indent=2))
+                
+                # Record Success Iteration (No feedback needed as we stop)
+                self.run_memory.record_iteration(
+                    run_id=self.run_id,
+                    iteration=self.current_iteration,
+                    research_goal=research_goal,
+                    experiment_spec=experiment_spec,
+                    evaluation_verdict=verdict,
+                    feedback_passed="Success - Termination"
+                )
+
+                # 2. Crystallize Knowledge
+                self.knowledge_memory.record_knowledge(
+                    run_id=self.run_id,
+                    experiment_spec=experiment_spec,
+                    evaluation_verdict=verdict
+                )
                 return
 
             elif issue_type == "execution":
@@ -152,6 +209,16 @@ Perform the evaluation based on the following context:
                 
             else:
                 feedback = f"Iterate. Classification: {classification}. Rationale: {rationale}."
+            
+            # 1. Record Iteration to Run Memory (Now with feedback)
+            self.run_memory.record_iteration(
+                run_id=self.run_id,
+                iteration=self.current_iteration,
+                research_goal=research_goal,
+                experiment_spec=experiment_spec,
+                evaluation_verdict=verdict,
+                feedback_passed=feedback
+            )
 
         logger.info("Max iterations reached without robust success.")
 
