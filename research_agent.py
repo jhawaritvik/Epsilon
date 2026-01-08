@@ -4,6 +4,7 @@ import logging
 import json
 import os
 from dotenv import load_dotenv
+from memory.evidence_memory_writer import EvidenceMemoryWriter
 
 # Load environment variables
 load_dotenv()
@@ -120,6 +121,56 @@ def notes_memory_save(
     return f"Note saved. note_id={note_id}"
 
 
+# Initialize the writer (instance will use singleton client)
+evidence_writer = EvidenceMemoryWriter()
+
+@function_tool
+def save_evidence(
+    source_type: str,
+    source_url: str,
+    extracted_claim: str,
+    supporting_text: str,
+    confidence: str,
+    paper_title:str = None,
+    section: str = None
+) -> str:
+    """
+    Saves a specific piece of evidence to the permanent research memory.
+    Use this for KEY findings, claims, or specifications that must survive the research phase.
+    
+    params:
+      source_type: 'pdf' or 'web'
+      confidence: 'high', 'medium', or 'low'
+      extracted_claim: The core finding in your own words.
+      supporting_text: The exact quote/excerpt from the source proving the claim.
+    """
+    logger.info(f"Tool 'save_evidence' called for: {extracted_claim[:50]}...")
+    
+    # 1. Get Run ID from Environment (Passed by Controller)
+    run_id = os.environ.get("CURRENT_RUN_ID")
+    if not run_id:
+        # Fallback if run standalone (dev mode)
+        logger.warning("CURRENT_RUN_ID not set. Evidence will not be linked to a run.")
+        return "Error: CURRENT_RUN_ID not set in environment. Cannot save evidence."
+    
+    # 2. Save
+    try:
+        evidence_writer.record_evidence(
+            run_id=run_id,
+            source_type=source_type,
+            source_url=source_url,
+            paper_title=paper_title,
+            section=section,
+            extracted_claim=extracted_claim,
+            supporting_text=supporting_text,
+            confidence=confidence
+        )
+        return "Evidence saved successfully to database."
+    except Exception as e:
+        logger.error(f"Failed to save evidence: {e}")
+        return f"Failed to save evidence: {e}"
+
+
 # --- Agent Definition ---
 
 research_instructions = """
@@ -130,6 +181,7 @@ You are the **Research Exploration Agent**. Your primary and sole goal is to **C
 2.  **Corpus Construction (CRITICAL)**:
     -   Use `read_pdf` to ingest the full text of primary sources that directly address the research question.
     -   Use `notes_memory_save` to capture *highly relevant* technical data: specific architecture diagrams descriptions, core formulas, key benchmark results, and implementation specifics that are essential for reproduction.
+    -   Use `save_evidence` for CRITICAL scientific claims or design constraints that must be persisted to the database.
     -   Prioritize *relevant information density* over breadth. Ensure every item in the corpus has a clear link to the research objective.
 3.  **No Inferencing**: Dedicated to building a lean, relevant, and searchable information base.
 
@@ -138,7 +190,8 @@ You are the **Research Exploration Agent**. Your primary and sole goal is to **C
 2.  **Search & Filter**: Use `web_search` to find high-impact resources. Critically evaluate search results for relevance before proceeding to a deep dive.
 3.  **Filtered Ingest**: 
     -   `read_pdf` for identified *core* papers only.
-    -   `notes_memory_save` for technical specifics found in blogs, docs, or READMEs.
+    -   `notes_memory_save` for general notes.
+    -   `save_evidence` for High-Value Findings (e.g. "Linear warmup reduces variance by 40%").
 4.  **Final Indexing**: 
     -   Provide a "Research Corpus Index" which is a structured list of every entity saved to memory.
 
@@ -150,7 +203,7 @@ You are the **Research Exploration Agent**. Your primary and sole goal is to **C
 research_agent = Agent(
     name="Research Exploration Agent",
     instructions=research_instructions,
-    tools=[web_search, read_pdf, notes_memory_search, notes_memory_save],
+    tools=[web_search, read_pdf, notes_memory_search, notes_memory_save, save_evidence],
 )
 
 # --- Main Execution ---

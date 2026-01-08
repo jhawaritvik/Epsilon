@@ -38,7 +38,13 @@ class ResearchController:
         
         # --- PHASE 1: EXPLORATION ---
         logger.info("--- PHASE 1: RESEARCH EXPLORATION ---")
-        research_result = Runner.run_sync(research_agent, research_goal)
+        
+        # Inject Run ID so Research Agent can save evidence
+        os.environ["CURRENT_RUN_ID"] = str(self.run_id)
+        try:
+            research_result = Runner.run_sync(research_agent, research_goal)
+        finally:
+            del os.environ["CURRENT_RUN_ID"] # Cleanup
         
         # Parse research output to act as corpus
         # The research agent returns a "Research Corpus Index" and summary. 

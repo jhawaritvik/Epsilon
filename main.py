@@ -19,7 +19,7 @@ def main():
     # 1. Try reading from prompt file
     if os.path.exists(PROMPT_FILE):
         with open(PROMPT_FILE, "r") as f:
-            content = f.read().strip()
+            content = f.read().strip()  
             # Ignore placeholder or empty
             if content and not content.startswith("Enter your research goal here"):
                 research_goal = content

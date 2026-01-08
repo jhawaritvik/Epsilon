@@ -61,3 +61,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_knowledge_per_run ON knowledge_memory(run_i
 
 -- Note: FK constraint from knowledge_memory(run_id) to run_memory(run_id) is NOT added
 -- because run_memory.run_id is not unique (1 run = many iterations).
+
+-- ------------------------------------------------------------------------------
+-- 3. Research Evidence (Raw Findings / Artifacts)
+-- Purpose: Persist primary research artifacts (claims, excerpts) so they survive agent boundaries.
+-- Properties: Write-only by Research Agent.
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS research_evidence (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    run_id UUID NOT NULL,                        -- Link to the current run
+    source_type TEXT NOT NULL,                   -- 'pdf', 'web', 'generated'
+    source_url TEXT NOT NULL,                    -- Origin URL or filepath
+    paper_title TEXT,                            -- Optional title
+    section TEXT,                                -- 'Methods', 'Results', etc.
+    extracted_claim TEXT NOT NULL,               -- The specific finding
+    supporting_text TEXT NOT NULL,               -- The raw text backing the claim
+    confidence TEXT NOT NULL,                    -- 'high', 'medium', 'low'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_research_evidence_run_id ON research_evidence(run_id);
