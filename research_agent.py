@@ -4,7 +4,7 @@ import logging
 import json
 import os
 from dotenv import load_dotenv
-from memory.evidence_memory_writer import EvidenceMemoryWriter
+# from memory.evidence_memory_writer import EvidenceMemoryWriter # Removed in favor of MemoryService
 
 # Load environment variables
 load_dotenv()
@@ -64,65 +64,44 @@ def read_pdf(url: str, title: str = None) -> str:
         for page in reader.pages:
             text += page.extract_text() + "\n"
         
-        # Save to notes store
-        note_id = len(notes_store)
-        notes_store[note_id] = {
-            "id": note_id,
-            "type": "paper",
-            "source": url,
-            "title": title or url.split("/")[-1],
-            "content": text,
-            "summary": text[:500],
-            "tags": [],
-            "created_by": "research_agent"
-        }
-
-        return f"PDF stored successfully. note_id={note_id}"
+        # Return success - agent should use save_evidence for critical claims
+        return f"PDF successfully read from {url}. {len(text)} characters extracted. Use save_evidence to persist key findings."
     except Exception as e:
         logger.error(f"Failed to read PDF {url}: {e}")
         return f"Failed to read PDF: {e}"
 
-# Simple in-memory store for notes
-notes_store = {}
+# notes_store REMOVED - violates memory architecture principles
+# All research data must flow through Evidence Memory for:
+# - Persistence across agent boundaries
+# - Auditability and provenance tracking
+# - Queryability by other agents (Design Agent needs access)
+# Use save_evidence and query_evidence tools instead
+
+
+from memory.memory_service import MemoryService
+
+# Initialize the Memory Service
+memory_service = MemoryService()
 
 @function_tool
-def notes_memory_search(query: str) -> str:
+def query_evidence(query: str) -> str:
     """
-    Simulates searching the notes memory for a given query.
+    Queries the existing evidence memory for claims related to the topic.
+    ALWAYS call this BEFORE starting a new web search or reading a PDF to see if the information already exists.
     """
-    logger.info(f"Tool 'notes_memory_search' called with query: {query}")
-    
-    results = []
-
-    for note in notes_store.values():
-        if query.lower() in note["content"].lower():
-            results.append(f"[{note['id']}] {note['title']}")
-
-    return "\n".join(results) if results else "No relevant notes found."
-
-@function_tool
-def notes_memory_save(
-    content: str,
-    source: str = "",
-    note_type: str = "note",
-    tags: list[str] = None
-) -> str:
-    note_id = len(notes_store)
-
-    notes_store[note_id] = {
-        "id": note_id,
-        "type": note_type,
-        "source": source,
-        "content": content,
-        "tags": tags or [],
-        "created_by": "research_agent"
-    }
-
-    return f"Note saved. note_id={note_id}"
-
-
-# Initialize the writer (instance will use singleton client)
-evidence_writer = EvidenceMemoryWriter()
+    logger.info(f"Tool 'query_evidence' called with query: {query}")
+    try:
+        results = memory_service.get_evidence(goal=query, limit=5)
+        if not results:
+            return "No existing evidence found."
+        
+        formatted = ["Existing Evidence:"]
+        for item in results:
+            formatted.append(f"- [{item.get('confidence', 'medium')}] {item.get('extracted_claim')} (Source: {item.get('source_url')})")
+        return "\n".join(formatted)
+    except Exception as e:
+        logger.error(f"Failed to query evidence: {e}")
+        return f"Error querying evidence: {e}"
 
 @function_tool
 def save_evidence(
@@ -153,9 +132,9 @@ def save_evidence(
         logger.warning("CURRENT_RUN_ID not set. Evidence will not be linked to a run.")
         return "Error: CURRENT_RUN_ID not set in environment. Cannot save evidence."
     
-    # 2. Save
+    # 2. Save via Service
     try:
-        evidence_writer.record_evidence(
+        result = memory_service.write_evidence(
             run_id=run_id,
             source_type=source_type,
             source_url=source_url,
@@ -165,7 +144,7 @@ def save_evidence(
             supporting_text=supporting_text,
             confidence=confidence
         )
-        return "Evidence saved successfully to database."
+        return result
     except Exception as e:
         logger.error(f"Failed to save evidence: {e}")
         return f"Failed to save evidence: {e}"
@@ -177,33 +156,31 @@ research_instructions = """
 You are the **Research Exploration Agent**. Your primary and sole goal is to **CONSTRUCT A COMPREHENSIVE RESEARCH CORPUS**. You are an information gatherer, not a designer or executor.
 
 **Primary Objectives**:
-1.  **Targeted Search**: Find the most *relevant* papers, technical reports, and documentation for the given topic. Filter out noise and tangential information.
-2.  **Corpus Construction (CRITICAL)**:
-    -   Use `read_pdf` to ingest the full text of primary sources that directly address the research question.
-    -   Use `notes_memory_save` to capture *highly relevant* technical data: specific architecture diagrams descriptions, core formulas, key benchmark results, and implementation specifics that are essential for reproduction.
-    -   Use `save_evidence` for CRITICAL scientific claims or design constraints that must be persisted to the database.
-    -   Prioritize *relevant information density* over breadth. Ensure every item in the corpus has a clear link to the research objective.
-3.  **No Inferencing**: Dedicated to building a lean, relevant, and searchable information base.
+1.  **Check Existing Knowledge**: ALWAYS call `query_evidence` first to see what is already known about the topic. Avoid duplicating work.
+2.  **Targeted Search**: Find the most *relevant* papers, technical reports, and documentation for the given topic. Filter out noise.
+3.  **Corpus Construction (CRITICAL)**:
+    -   Use `read_pdf` to ingest the full text of primary sources.
+    -   Use `save_evidence` to persist ALL important claims with supporting text.
+    -   Extract atomic, verifiable facts (not interpretations).
+    -   Prioritize *relevant information density* over breadth.
+4.  **No Inferencing**: Dedicated to building a lean, relevant, and searchable information base.
 
 **Process**:
-1.  **Analyze**: Identify the key keywords, core technical challenges, and relevant domains.
-2.  **Search & Filter**: Use `web_search` to find high-impact resources. Critically evaluate search results for relevance before proceeding to a deep dive.
-3.  **Filtered Ingest**: 
-    -   `read_pdf` for identified *core* papers only.
-    -   `notes_memory_save` for general notes.
-    -   `save_evidence` for High-Value Findings (e.g. "Linear warmup reduces variance by 40%").
-4.  **Final Indexing**: 
-    -   Provide a "Research Corpus Index" which is a structured list of every entity saved to memory.
+1.  **Memory Check**: Query existing evidence with `query_evidence`.
+2.  **Analyze**: Identify key gaps in knowledge.
+3.  **Search & Filter**: Use `web_search` for relevant sources.
+4.  **Ingest & Persist**: Use `read_pdf` to extract content, then `save_evidence` for critical claims.
+5.  **Final Summary**: Return research corpus summary.
 
 **Outputs**:
--   **Research Corpus Index**: A detailed catalog of all stored papers and notes.
--   **Topic Summary**: A purely descriptive map of what information has been collected and where it can be found in the memory.
+-   **Research Corpus Index**
+-   **Topic Summary**
 """
 
 research_agent = Agent(
     name="Research Exploration Agent",
     instructions=research_instructions,
-    tools=[web_search, read_pdf, notes_memory_search, notes_memory_save, save_evidence],
+    tools=[query_evidence, web_search, read_pdf, save_evidence],
 )
 
 # --- Main Execution ---

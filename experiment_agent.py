@@ -18,35 +18,82 @@ logger = logging.getLogger(__name__)
 # TOOL: Corpus Intelligence (ONLY TOOL)
 # ============================================================
 
+from memory.memory_service import MemoryService
+from memory.types import FailureType
+
+# Initialize Memory Service
+memory_service = MemoryService()
+
 @function_tool
-def corpus_query(query: str, notes_content: list[str]) -> str:
+def query_knowledge(query: str) -> str:
     """
-    Evidence-grounded retrieval over research notes.
-    Used ONLY to justify experimental design choices.
+    Retrieves validated scientific facts (crystallized knowledge) relevant to the query.
+    Use this to ground your experiment in established truth.
+    """
+    logger.info(f"Tool 'query_knowledge' called with query: {query}")
+    try:
+        results = memory_service.get_knowledge(goal=query, limit=3)
+        if not results:
+            return "No specific crystallized knowledge found."
+        
+        return json.dumps(results, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to query knowledge: {e}")
+        return "Error querying knowledge."
+
+@function_tool
+def query_past_failures(query: str = None) -> str:
+    """
+    Retrieves past FAILED iterations to avoid repeating mistakes.
+    Automatically filters for 'failed' runs.
+    """
+    logger.info(f"Tool 'query_past_failures' called with query: {query}")
+    try:
+        # We look for all failure types to be safe
+        results = memory_service.get_past_runs(goal=query, limit=5)
+        # Filter for failures only client-side if the service returns all, 
+        # but our service currently returns all runs if verdict is not specified.
+        # Let's rely on the agent reading the 'classification'/'issue_type'.
+        # Better: Filter specifically for failed runs in logic
+        
+        failed_runs = [r for r in results if r.get("classification") == "failed"]
+        
+        if not failed_runs:
+            return "No relevant past failures found."
+            
+        summary = []
+        for run in failed_runs:
+            summary.append({
+                "iteration": run.get("iteration"),
+                "issue_type": run.get("issue_type"),
+                "rationale": run.get("evaluation_verdict", {}).get("rationale")
+            })
+            
+        return json.dumps(summary, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to query past failures: {e}")
+        return "Error querying past runs."
+
+@function_tool
+def corpus_query(query: str) -> str:
+    """
+    Queries global evidence memory for research findings relevant to the query.
+    Use this to ground your experiment design in established evidence.
     """
     logger.info(f"corpus_query called with query: {query}")
+    
+    # Query global evidence memory
+    global_results = memory_service.get_evidence(goal=query, limit=5)
+    
+    if not global_results:
+        return json.dumps({"message": "No relevant evidence found in memory.", "results": []}, indent=2)
+    
+    formatted = [
+        {"claim": r.get('extracted_claim'), "source": r.get('source_url'), "confidence": r.get('confidence')} 
+        for r in global_results
+    ]
 
-    if not notes_content:
-        return json.dumps([])
-
-    vectorizer = TfidfVectorizer()
-    tfidf = vectorizer.fit_transform(notes_content + [query])
-
-    query_vec = tfidf[-1]
-    similarities = (tfidf[:-1] * query_vec.T).toarray().flatten()
-
-    top_indices = similarities.argsort()[-3:][::-1]
-
-    results = []
-    for idx in top_indices:
-        if similarities[idx] > 0:
-            results.append({
-                "note_index": int(idx),
-                "similarity": float(similarities[idx]),
-                "excerpt": notes_content[idx][:200]
-            })
-
-    return json.dumps(results, indent=2)
+    return json.dumps({"results": formatted}, indent=2)
 
 # ============================================================
 # AGENT INSTRUCTIONS
@@ -58,7 +105,12 @@ You are the **Experiment Design Agent**.
 Your role is to translate a user research goal and supporting literature
 into a **formal, statistically rigorous Experiment Specification**.
 
-You define:
+**Core Principles**:
+1.  **Stand on Shoulders of Giants**: Use `query_knowledge` to check if this question is already answered.
+2.  **Learn from Mistakes**: Use `query_past_failures` to see what didn't work previously (e.g. "Linear warmup failed for X").
+3.  **Ground in Evidence**: Use `corpus_query` to find params/architectures in the literature.
+
+**You define**:
 - Research question
 - Null and alternative hypotheses (H0 / H1)
 - Independent, dependent, and control variables
@@ -69,20 +121,12 @@ You define:
 
 You do NOT:
 - Write runnable code
-- Choose implementation details
-- Execute experiments
-- Compute statistics or p-values
 - Interpret results
 
-You may use tools ONLY to retrieve evidence from the research corpus.
-Inputs:
-- User Goal
-- Research Corpus
-- Feedback from Previous Iteration (if any)
-
-All experimental and statistical specifications must be produced
-
-through explicit reasoning and written declarations.
+**Tools**:
+- `query_knowledge(query)`: Check established facts.
+- `query_past_failures(query)`: Check for specific failure patterns.
+- `corpus_query(query)`: Search evidence memory.
 
 Your output MUST be a single valid JSON object with no extra text.
 
@@ -138,32 +182,6 @@ Required Output Schema:
 
 Be explicit. Remove ambiguity. Do not suggest — decide.
 If "Feedback from Previous Iteration" is present, you MUST address it in "revision_directives" or by modifying the spec.
-
-EXECUTION MODES:
-- "validation" (Default):
-  - Purpose: Verify pipeline correctness, metric logging, and artifact generation.
-  - Constraints: Short timeout (300s), small datasets (toy/subsampled), minimal epochs/seeds.
-  - Use this for the FIRST iteration or when debugging.
-
-- "scientific":
-  - Purpose: Rigorous hypothesis testing and effect size estimation.
-  - Constraints: Long timeout (1800s), full datasets, multiple seeds (N>=5).
-  - Use this ONLY after a successful "validation" run has proven the code works but lacked statistical power.
-
-DATA RESOLUTION CONSTRAINT (MANDATORY):
-
-If you specify:
-- data_modality.type = "external"
-
-Then you MUST provide ONE of:
-- dataset_id (explicit, resolvable)
-- source_family with acceptance criteria explicitly allowing resolver choice
-
-If neither is possible, you MUST choose:
-- data_modality.type = "procedural" or "simulation"
-
-Do NOT propose experiments that require external data without a resolvable acquisition path.
-
 """
 
 # ============================================================
@@ -173,7 +191,7 @@ Do NOT propose experiments that require external data without a resolvable acqui
 experiment_design_agent = Agent(
     name="Experiment Design Agent",
     instructions=experiment_instructions,
-    tools=[corpus_query],  # minimal, correct
+    tools=[corpus_query, query_knowledge, query_past_failures],
 )
 
 # ============================================================

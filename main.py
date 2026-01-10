@@ -9,7 +9,48 @@ logger = logging.getLogger("Main")
 
 PROMPT_FILE = "research_prompt.txt"
 
+def validate_environment():
+    """
+    Validates required environment variables are set.
+    Exits with clear error message if any are missing.
+    """
+    required = {
+        "OPENAI_API_KEY": "OpenAI API access for all agents",
+        "TAVILY_API_KEY": "Web search functionality (Research Agent)",
+        "SUPABASE_URL": "Memory persistence (optional but recommended)",
+        "SUPABASE_KEY": "Memory persistence (optional but recommended)"
+    }
+    
+    missing = []
+    warnings = []
+    
+    for key, purpose in required.items():
+        if not os.getenv(key):
+            # Supabase is optional - warn but don't block
+            if key.startswith("SUPABASE"):
+                warnings.append(f"  ⚠️  {key} (for {purpose})")
+            else:
+                missing.append(f"  ❌ {key} (for {purpose})")
+    
+    if warnings:
+        print("\n⚠️  WARNING: Optional environment variables not set:")
+        print("\n".join(warnings))
+        print("Memory persistence will be DISABLED. Set these in .env to enable.\n")
+    
+    if missing:
+        print("\n" + "="*60)
+        print("❌ ERROR: Missing REQUIRED environment variables:")
+        print("="*60)
+        print("\n".join(missing))
+        print("\nPlease configure your .env file. See .env.example for template.")
+        print("="*60 + "\n")
+        sys.exit(1)
+
+
 def main():
+    # Validate environment before starting
+    validate_environment()
+    
     print("==================================================")
     print("   AUTONOMOUS RESEARCH ENGINE - USER CONTROLLER   ")
     print("==================================================")

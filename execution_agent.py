@@ -19,11 +19,13 @@ logger = logging.getLogger(__name__)
 # TOOLS: Execution Utilities
 # ============================================================
 
-EXPERIMENT_DIR = "experiments"
+from pathlib import Path
+
+# Use absolute path relative to this file for robustness
+EXPERIMENT_DIR = str(Path(__file__).parent / "experiments")
 
 def _ensure_experiment_dir():
-    if not os.path.exists(EXPERIMENT_DIR):
-        os.makedirs(EXPERIMENT_DIR)
+    Path(EXPERIMENT_DIR).mkdir(exist_ok=True)
 
 @function_tool
 def dataset_resolver(
@@ -67,10 +69,17 @@ def dataset_resolver(
                 results = list(list_datasets(search=source, limit=1))
 
                 if not results:
-                    raise RuntimeError(
-                        "No dataset satisfies dataset_requirements. "
-                        "Escalate to Evaluation → Design."
-                    )
+                    # Return structured error instead of raising exception
+                    error_result = {
+                        "dataset_source": "huggingface",
+                        "status": "resolution_failed",
+                        "error": f"No dataset found matching source_family: '{source}'",
+                        "action": "Report this to the user. Consider specifying an explicit dataset_id."
+                    }
+                    path = os.path.join(EXPERIMENT_DIR, "dataset_used.json")
+                    with open(path, "w") as f:
+                        json.dump(error_result, f, indent=2)
+                    return json.dumps(error_result, indent=2)
 
                 ds = results[0]
                 resolved = {
@@ -81,7 +90,14 @@ def dataset_resolver(
                 }
 
             except Exception as e:
-                raise RuntimeError(f"Dataset resolution failed: {e}")
+                # Return structured error for any resolution failure
+                error_result = {
+                    "dataset_source": "huggingface",
+                    "status": "resolution_failed",
+                    "error": str(e),
+                    "action": "Check network connectivity or specify explicit dataset_id."
+                }
+                return json.dumps(error_result, indent=2)
 
     elif modality_type == "procedural":
         resolved = {
@@ -215,7 +231,14 @@ The Code Agent does not decide how data should be obtained; it infers the data a
    - Repeat up to 5 times.
 6. Confirm all artifacts (`run_experiment.py`, `dataset_used.json`, `raw_results.json`, `execution.log`) are produced.
 
-Your output should be a brief summary of the execution status (including any retries) and a list of artifacts produced.
+Your output MUST be a valid JSON object with the following schema:
+{
+  "execution_status": "success | failed | partial",
+  "artifacts": ["list", "of", "files", "created"],
+  "summary": "Brief summary of what happened"
+}
+
+DO NOT output conversational text. ONLY output the JSON.
 """
 
 # ============================================================
