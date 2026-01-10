@@ -1,1 +1,0 @@
-Test Goal: Does feature standardization significantly reduce early-training gradient variance in logistic regression trained with SGD on tabular classification data?

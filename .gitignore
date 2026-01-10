@@ -9,6 +9,7 @@ artifacts/
 *.log
 latest_run_analysis.md
 goal.txt
+research_prompt.txt
 
 # OS specifics
 .DS_Store
