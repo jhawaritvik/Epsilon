@@ -129,6 +129,8 @@ You do NOT:
 - `corpus_query(query)`: Search evidence memory.
 
 Your output MUST be a single valid JSON object with no extra text.
+**CRITICAL**: Ensure strictly valid JSON. No trailing commas. No comments (// or #) inside the JSON.
+Do not markdown format the JSON (no ```json code blocks). Just the raw JSON string.
 
 Required Output Schema:
 

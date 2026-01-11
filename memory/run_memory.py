@@ -65,7 +65,7 @@ class RunMemory:
         except Exception as e:
             logger.error(f"[RunMemory] Failed to record iteration: {e}")
 
-    def query_run_memory(self, query: str = None, issue_type: Optional[FailureType] = None, limit: int = 10) -> List[Dict[str, Any]]:
+    def query_run_memory(self, query: str = None, issue_type: Optional[FailureType] = None, run_id: str = None, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Retrieves past runs. 
         useful for finding past failures to avoid repetition.
@@ -81,6 +81,9 @@ class RunMemory:
                 
             if issue_type:
                 builder = builder.eq("issue_type", issue_type.value)
+
+            if run_id:
+                builder = builder.eq("run_id", str(run_id))
                 
             response = builder.order("created_at", desc=True).limit(limit).execute()
             return response.data if response.data else []

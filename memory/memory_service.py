@@ -110,11 +110,11 @@ class MemoryService:
 
     # --- Run Memory Operations (Audit) ---
 
-    def get_past_runs(self, goal: str = None, failure_type: Optional[FailureType] = None, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_past_runs(self, goal: str = None, failure_type: Optional[FailureType] = None, run_id: str = None, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Retrieves past runs, optionally filtering by specific failure types (e.g. DESIGN failures).
         """
-        return self._run_memory.query_run_memory(query=goal, issue_type=failure_type, limit=limit)
+        return self._run_memory.query_run_memory(query=goal, issue_type=failure_type, run_id=run_id, limit=limit)
 
     def write_run(self,
                   run_id: str,

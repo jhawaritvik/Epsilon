@@ -51,11 +51,40 @@ def dataset_resolver(
         # PATH A: Explicit ID provided (User Requirement)
         dataset_id = data_modality.get("dataset_id")
         if dataset_id:
-             resolved = {
+            # Check if this is already a canonical name (contains '/')
+            # If not, search HuggingFace to find the canonical name
+            if "/" not in dataset_id:
+                try:
+                    from huggingface_hub import list_datasets
+                    logger.info(f"Searching HuggingFace for canonical name of '{dataset_id}'")
+                    results = list(list_datasets(search=dataset_id, limit=5))
+                    
+                    # Find exact match or best match
+                    canonical_id = None
+                    for ds in results:
+                        # Exact match on the dataset name part
+                        if ds.id.split("/")[-1].lower() == dataset_id.lower():
+                            canonical_id = ds.id
+                            break
+                    
+                    if not canonical_id and results:
+                        # Use first result as fallback
+                        canonical_id = results[0].id
+                    
+                    if canonical_id:
+                        logger.info(f"Resolved '{dataset_id}' -> '{canonical_id}'")
+                        dataset_id = canonical_id
+                    else:
+                        logger.warning(f"Could not find canonical name for '{dataset_id}', using as-is")
+                except Exception as e:
+                    logger.warning(f"HuggingFace search failed: {e}. Using '{dataset_id}' as-is")
+            
+            resolved = {
                 "dataset_source": "huggingface",
                 "dataset_id": dataset_id,
-                "version": "latest", # We assume latest if explicit ID is given
-                "status": "resolved"
+                "version": "latest",
+                "status": "resolved",
+                "load_instruction": f"Use: load_dataset('{dataset_id}')"
             }
         
         # PATH B: Family search (Fallback)
@@ -140,6 +169,33 @@ def execute_experiment(code: str, execution_mode: str = "validation") -> str:
     logger.info(f"execute_experiment called (mode={execution_mode})")
     _ensure_experiment_dir()
     
+    # ----------------------------------------------------
+    # CONTRACT ENFORCEMENT LAYER (Behavioral Guard)
+    # ----------------------------------------------------
+    dataset_info_path = os.path.join(EXPERIMENT_DIR, "dataset_used.json")
+    if os.path.exists(dataset_info_path):
+        try:
+            with open(dataset_info_path, "r") as f:
+                dataset_meta = json.load(f)
+                
+            source = dataset_meta.get("dataset_source", "unknown")
+            
+            # 1. Procedural Invariant: No external data loaders
+            if source == "procedural" or source == "simulation":
+                forbidden = ["torchvision.datasets", "sklearn.datasets", "keras.datasets", "tensorflow_datasets"]
+                for bad in forbidden:
+                    if bad in code:
+                        return f"CONTRACT VIOLATION: Dataset source is '{source}', but code uses '{bad}'. This is strictly forbidden. You must generate data internally."
+                        
+            # 2. External Invariant: Must use authorised loaders if specified
+            # (Future: Check strictly for the dataset_id)
+            
+        except Exception as e:
+            logger.warning(f"Could not verify contract: {e}")
+    else:
+        # If no resolution happened, we might warn, but let's allow for now (backward compat)
+        pass
+
     file_path = os.path.join(EXPERIMENT_DIR, "run_experiment.py")
     with open(file_path, "w") as f:
         f.write(code)
@@ -220,15 +276,22 @@ The Code Agent does not decide how data should be obtained; it infers the data a
 1. Read the Experiment Specification.
 2. Call `dataset_resolver` with `json.dumps(data_modality)` and `json.dumps(dataset_requirements)`.
 3. Generate the Python code for the experiment:
-   - Handle data loading/generation based ONLY on resolution result.
+   - **BINDING CLAUSE**: You MUST use the STRICT output of `dataset_resolver`.
+     - If `external`: Load ONLY the `dataset_id` returned. Do NOT substitute (e.g., do not load 'mnist' if resolver returned 'fashion_mnist').
+     - If `procedural`: Implement the generation logic exactly as instructed.
+     - **FORBIDDEN**: Do not use `sklearn.datasets.load_*` or `torchvision.datasets.*` unless explicitly returned by the resolver.
    - Log raw metrics to `raw_results.json`.
+     - **CRITICAL**: Save strictly to `.`, i.e., `raw_results.json`. **DO NOT create an 'artifacts' subdirectory**.
+     - **CRITICAL**: Convert ALL numpy types to native Python.
 4. Call `execute_experiment` with the generated code and the `execution_mode` from the input.
-5. **Iterative Debugging**:
-   - If `execute_experiment` returns a failure, READ the error message carefully.
-   - ANALYZE why it failed.
-   - REGENERATE the `run_experiment.py` code with specific fixes.
-   - CALL `execute_experiment` again (preserving mode).
-   - Repeat up to 5 times.
+5. **MANDATORY Iterative Debugging**:
+   - If `execute_experiment` returns a failure (e.g., ImportError, SyntaxError, runtime error):
+     - **DO NOT** return a "failed" status immediately.
+     - **DO NOT** give up.
+     - **DIAGNOSE** the error from the logs.
+     - **REGENERATE** the full `run_experiment.py` code with the fix.
+     - **RE-EXECUTE** by calling `execute_experiment` again.
+   - You MUST attempt at least 3 repair cycles before declaring failure.
 6. Confirm all artifacts (`run_experiment.py`, `dataset_used.json`, `raw_results.json`, `execution.log`) are produced.
 
 Your output MUST be a valid JSON object with the following schema:

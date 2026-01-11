@@ -103,6 +103,61 @@ def verify_assumptions(check_type: str, data: list[float]) -> str:
         
     return json.dumps({"error": f"Unsupported check: {check_type}"})
 
+@function_tool
+def python_analysis_tool(code: str) -> str:
+    """
+    Executes Python code to analyze data files (e.g. .json, .csv) directly.
+    Pre-imported libraries: pandas as pd, numpy as np, scipy.stats as stats, json.
+    
+    Usage Guidelines:
+    1. READ data from 'experiments/raw_results.json' (or other provided paths).
+    2. PERFORM statistical tests or data aggregation.
+    3. PRINT key results to stdout (e.g., p-values, means).
+    4. The stdout of your code will be returned to you.
+    
+    Example:
+    code = \"\"\"
+    import json
+    import pandas as pd
+    from scipy import stats
+    
+    # Load Data
+    with open('experiments/raw_results.json', 'r') as f:
+        data = json.load(f)
+    
+    # Process
+    df = pd.DataFrame(data['results'])
+    stat, p_val = stats.ttest_1samp(df['value'], 0.0)
+    print(f"T-statistic: {stat}, P-value: {p_val}")
+    \"\"\"
+    """
+    logger.info("python_analysis_tool called")
+    
+    # Capture stdout
+    import io
+    from contextlib import redirect_stdout
+    
+    f = io.StringIO()
+    try:
+        # Restricted globals for safety context (though we trust the agent in this local environment)
+        # We explicitly provide necessary libraries
+        exec_globals = {
+            "pd": pd,
+            "np": np,
+            "stats": stats,
+            "json": json,
+            "math": __import__("math")
+        }
+        
+        with redirect_stdout(f):
+            exec(code, exec_globals)
+        
+        output = f.getvalue()
+        return output if output else "Code executed successfully (no output)."
+        
+    except Exception as e:
+        return f"Error executing code: {e}"
+
 # ============================================================
 # AGENT INSTRUCTIONS
 # ============================================================
@@ -114,37 +169,28 @@ Your role is to act as a **Statistical Executor** and **Scientific Validator**.
 You strictly execute the analysis protocol defined by the Design Agent.
 
 **Responsibilities**:
-1.  **Verify Assumptions FIRST**: 
-    - Execute `verify_assumptions` for checks listed in `analysis_protocol` (e.g., normality).
+1.  **Analyze Data via Code**: 
+    - You will receive a **filepath** to the data (e.g., `experiments/raw_results.json`).
+    - **DO NOT** ask to see the raw data in chat.
+    - **USE `python_analysis_tool`** to write and execute Python code to load and analyze this file.
+    - Calculate statistics (means, p-values, normality checks) using libraries like `scipy.stats` and `pandas`.
+2.  **Verify Assumptions**: 
+    - Use your Python tool to perform checks (e.g., Shapiro-Wilk) on the data file.
     - **Gating Logic**:
-      - IF any assumption FAILS: You MUST NOT run the `primary_test`. Instead, run the `fallback_test` defined in the protocol.
-      - IF all assumptions PASS: Run the `primary_test`.
-2.  **Execute Statistical Test**: 
-    - Run the selected test (primary or fallback) using `run_statistical_test`.
-    - **Directionality**: You MUST pass the `alternative` argument ("less", "greater", "two-sided") as specified in the protocol.
+      - IF any assumption FAILS: You MUST NOT run the `primary_test`. Instead, run the `fallback_test`.
 3.  **Judge Results**: Compare p-values to $\alpha$ and declare `Reject H0` / `Fail to reject H0`.
 4.  **Classify Outcome**: 
     - Use the `classification_rules` from the protocol to label results (e.g., `robust`, `spurious`, `promising`).
-    - strictly matching the rule conditions to your findings (Verdict + Assumption Status).
     - **Issue Type**:
-      - `design`: If H0 is not rejected or assumptions fail (requires experiment redesign).
+      - `design`: If H0 is not rejected or assumptions fail.
       - `data`: If results indicate insufficient data size or quality.
-      - `execution`: If results look anomalous/corrupted (not just poor performance).
+      - `execution`: If results look anomalous/corrupted.
       - `none`: If outcome is `robust` (success).
 
 **Inputs provided to you**:
 - `experiment_specification` (JSON): Contains Research Question, $H_0$, $H_1$.
 - `analysis_protocol` (JSON): The authoritative guide.
-  - `primary_test`: { "name": "...", "alternative": "..." }
-  - `fallback_test`: { "name": "...", "alternative": "..." }
-  - `assumptions`: ["normality", ...]
-  - `classification_rules`: { "robust": [...], "promising": [...] }
-- `observations` (JSON): The raw data/metrics.
-
-**Constraints**:
-- **Strict Gating**: Never run a parametric test (e.g. t-test) if normality assumption fails.
-- **Strict Directionality**: Always respect the H1 direction (e.g. loss B < loss A => 'less').
-- **Strict Output**: Your final answer must be a valid JSON object.
+- `data_path` (str): Path to the results file (e.g., "experiments/raw_results.json").
 
 **Required Output Schema**:
 ```json
@@ -181,7 +227,7 @@ You strictly execute the analysis protocol defined by the Design Agent.
 evaluation_agent = Agent(
     name="Evaluation Agent",
     instructions=evaluation_instructions,
-    tools=[run_statistical_test, verify_assumptions],
+    tools=[python_analysis_tool, run_statistical_test, verify_assumptions],
 )
 
 # ============================================================

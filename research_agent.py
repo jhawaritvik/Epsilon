@@ -174,7 +174,8 @@ You are the **Research Exploration Agent**. Your primary and sole goal is to **C
 
 **Outputs**:
 -   **Research Corpus Index**
--   **Topic Summary**
+-   **Research Corpus Index** (List of sources/claims)
+-   **Executive Summary** (Concise synthesis of findings, < 2000 words. DO NOT dump full paper text.)
 """
 
 research_agent = Agent(
