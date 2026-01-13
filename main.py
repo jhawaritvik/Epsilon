@@ -5,6 +5,12 @@ import logging
 
 # Configure plain logging for the user interface
 logging.basicConfig(level=logging.INFO, format='%(message)s')
+
+# Suppress noisy third-party loggers to keep CLI clean
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+
 logger = logging.getLogger("Main")
 
 PROMPT_FILE = "research_prompt.txt"
@@ -88,21 +94,57 @@ def main():
         from memory.user_manager import UserManager
         import getpass
         
-        print("\n--- LOGIN TO RESEARCH ENGINE ---")
-        user_email = input("Email: ").strip()
-        if not user_email:
-            print("Email is required.")
-            sys.exit(1)
-            
-        user_password = getpass.getpass("Password: ").strip()
+        print("\n--- RESEARCH ENGINE AUTHENTICATION ---")
+        print("1. Login")
+        print("2. Register New User")
+        choice = input("Select an option (1/2): ").strip()
         
-        try:
-            print(f"Logging in as {user_email}...")
-            user_id = UserManager.login(user_email, user_password)
-            print(f"✅ Success. Session ID: {user_id}")
-        except Exception as e:
-            print(f"❌ Login Failed: {e}")
-            sys.exit(1)
+        user_id = None
+        
+        if choice == "2":
+            # --- REGISTRATION FLOW ---
+            print("\n--- REGISTER NEW USER ---")
+            r_email = input("Email: ").strip()
+            if not r_email:
+                print("Error: Email is required.")
+                sys.exit(1)
+                
+            r_pass = getpass.getpass("Password: ").strip()
+            if not r_pass:
+                 print("Error: Password cannot be empty.")
+                 sys.exit(1)
+                 
+            r_pass_confirm = getpass.getpass("Confirm Password: ").strip()
+            
+            if r_pass != r_pass_confirm:
+                print("❌ Error: Passwords do not match.")
+                sys.exit(1)
+            
+            try:
+                print(f"Registering {r_email}...")
+                user_id = UserManager.register(r_email, r_pass)
+                print(f"✅ Registration Successful. Automatically logged in.")
+            except Exception as e:
+                print(f"❌ Registration Failed: {e}")
+                sys.exit(1)
+
+        else:
+            # --- LOGIN FLOW (Default) ---
+            print("\n--- LOGIN ---")
+            l_email = input("Email: ").strip()
+            if not l_email:
+                print("Error: Email is required.")
+                sys.exit(1)
+                
+            l_pass = getpass.getpass("Password: ").strip()
+            
+            try:
+                print(f"Logging in as {l_email}...")
+                user_id = UserManager.login(l_email, l_pass)
+                print(f"✅ Login Successful. Session ID: {user_id}")
+            except Exception as e:
+                print(f"❌ Login Failed: {e}")
+                sys.exit(1)
         
         controller = ResearchController(user_id=user_id, max_iterations=5)
         controller.run(research_goal)

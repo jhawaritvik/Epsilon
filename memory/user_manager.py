@@ -14,8 +14,8 @@ class UserManager:
     @staticmethod
     def login(email: str, password: str) -> str:
         """
-        Logs in a user by email, or creates a new account if it doesn't exist.
-        Returns the user_id.
+        Logs in a user by email and password.
+        Returns the user_id if successful, raises Exception otherwise.
         """
         manager = SupabaseManager()
         if not manager.is_enabled:
@@ -23,19 +23,49 @@ class UserManager:
             return "00000000-0000-0000-0000-000000000001"
 
         try:
-            # 1. Try to find the user
-            res = manager.client.table("users").select("id").eq("email", email).execute()
-            if res.data:
-                user_id = res.data[0]['id']
+            # 1. Try to find the user and their hash
+            res = manager.client.table("users").select("id, password_hash").eq("email", email).execute()
+            
+            if not res.data:
+                raise Exception("User not found via email.")
+            
+            user_record = res.data[0]
+            stored_hash = user_record.get('password_hash')
+            
+            # 2. Verify Password
+            import hashlib
+            input_hash = hashlib.sha256(password.encode()).hexdigest()
+            
+            if input_hash == stored_hash:
+                user_id = user_record['id']
                 logger.info(f"[Identity] Logged in as: {email} ({user_id})")
                 return user_id
+            else:
+                raise Exception("Invalid password.")
+
+        except Exception as e:
+            logger.error(f"[Identity] Login failed: {e}")
+            raise e
+
+    @staticmethod
+    def register(email: str, password: str) -> str:
+        """
+        Registers a new user.
+        Returns the user_id.
+        """
+        manager = SupabaseManager()
+        if not manager.is_enabled:
+            logger.warning("Supabase disabled: Returning Mock UUID.")
+            return "00000000-0000-0000-0000-000000000001"
+            
+        try:
+            # 1. Check if user already exists
+            res = manager.client.table("users").select("id").eq("email", email).execute()
+            if res.data:
+                raise Exception(f"User {email} already exists.")
 
             # 2. Register new user
-            logger.info(f"[Identity] registering new user: {email}...")
-            # Note: In a real app we'd hash the password here. For this tool, we store it as is or a simple placeholder hash if strict security isn't the focus yet.
-            # Schema has password_hash. Let's strictly speaking hash it? Or just store string for now since it's an internal tool?
-            # User asked to "ask for password", implying they might care.
-            # I'll simple-hash it to be polite to the schema.
+            logger.info(f"[Identity] Registering new user: {email}...")
             import hashlib
             pwd_hash = hashlib.sha256(password.encode()).hexdigest()
             
@@ -52,7 +82,7 @@ class UserManager:
                 raise Exception("Registration failed (no data returned).")
 
         except Exception as e:
-            logger.error(f"[Identity] Login failed: {e}")
+            logger.error(f"[Identity] Registration failed: {e}")
             raise e
 
     @staticmethod
