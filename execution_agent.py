@@ -21,11 +21,15 @@ logger = logging.getLogger(__name__)
 
 from pathlib import Path
 
-# Use absolute path relative to this file for robustness
-EXPERIMENT_DIR = str(Path(__file__).parent / "experiments")
+# Dynamic Experiment Directory
+def get_experiment_dir():
+    run_id = os.environ.get("CURRENT_RUN_ID")
+    if run_id:
+        return str(Path(__file__).parent / "experiments" / run_id)
+    return str(Path(__file__).parent / "experiments")
 
 def _ensure_experiment_dir():
-    Path(EXPERIMENT_DIR).mkdir(exist_ok=True)
+    Path(get_experiment_dir()).mkdir(parents=True, exist_ok=True)
 
 @function_tool
 def dataset_resolver(
@@ -37,6 +41,7 @@ def dataset_resolver(
     Inputs are JSON strings to comply with strict schema requirements.
     """
     logger.info("dataset_resolver called")
+    EXPERIMENT_DIR = get_experiment_dir()
     _ensure_experiment_dir()
 
     data_modality = json.loads(data_modality_json)
@@ -128,7 +133,41 @@ def dataset_resolver(
                 }
                 return json.dumps(error_result, indent=2)
 
-    elif modality_type == "procedural":
+        # PATH C: Descriptive Search (User Requested Optimization)
+        # If no dataset_id is provided, use the 'description' or 'source_family' to find a match.
+
+    # PATH C: Descriptive Search (User Requested Optimization) - Explicit Check
+    if "resolved" not in locals() and modality_type == "external":
+        # Check if we have a description/family but failed ID match
+        description = data_modality.get("description") or data_modality.get("source_family")
+        if description and not data_modality.get("dataset_id"):
+             logger.info(f"Resolving via Descriptive Search: '{description}'")
+             try:
+                from huggingface_hub import list_datasets
+                results = list(list_datasets(search=description, limit=3))
+                if results:
+                    best_match = results[0]
+                    logger.info(f"Resolved description '{description}' -> '{best_match.id}'")
+                    resolved = {
+                        "dataset_source": "huggingface",
+                        "dataset_id": best_match.id,
+                        "version": best_match.last_modified,
+                        "status": "resolved",
+                        "resolution_method": "descriptive_search",
+                        "load_instruction": f"Use: load_dataset('{best_match.id}')"
+                    }
+                else:
+                    return json.dumps({
+                        "dataset_source": "huggingface",
+                        "status": "resolution_failed",
+                        "error": f"No datasets found matching description: '{description}'",
+                        "action": "Refine description or provide explicit dataset_id."
+                    }, indent=2)
+             except Exception as e:
+                 logger.warning(f"Descriptive search failed: {e}")
+
+    # PATH D: Procedural (Standard)
+    if "resolved" not in locals() and modality_type == "procedural":
         resolved = {
             "dataset_source": "procedural",
             "generation_method": data_modality.get("generation_method"),
@@ -136,8 +175,9 @@ def dataset_resolver(
             "status": "resolved",
             "instruction": "Generate data procedurally inside experiment code."
         }
-
-    elif modality_type == "simulation":
+        
+    # PATH E: Simulation
+    elif "resolved" not in locals() and modality_type == "simulation":
         resolved = {
             "dataset_source": "simulation",
             "generator": data_modality.get("generator"),
@@ -145,10 +185,11 @@ def dataset_resolver(
             "status": "resolved"
         }
 
-    else:
-        raise RuntimeError(
-            f"Unsupported data_modality.type: {modality_type}"
-        )
+    # Final Check
+    if "resolved" not in locals():
+        raise RuntimeError(f"Unsupported data_modality.type: {modality_type} or failed resolution.")
+
+
 
     if dataset_requirements:
         resolved["requirements"] = dataset_requirements
@@ -167,6 +208,7 @@ def execute_experiment(code: str, execution_mode: str = "validation") -> str:
     """
     # Use explicit argument
     logger.info(f"execute_experiment called (mode={execution_mode})")
+    EXPERIMENT_DIR = get_experiment_dir()
     _ensure_experiment_dir()
     
     # ----------------------------------------------------
@@ -181,11 +223,19 @@ def execute_experiment(code: str, execution_mode: str = "validation") -> str:
             source = dataset_meta.get("dataset_source", "unknown")
             
             # 1. Procedural Invariant: No external data loaders
+            # 1. Procedural Invariant: No external data loaders
             if source == "procedural" or source == "simulation":
-                forbidden = ["torchvision.datasets", "sklearn.datasets", "keras.datasets", "tensorflow_datasets"]
-                for bad in forbidden:
+                # Forbidden: Downloading external data
+                forbidden_loaders = ["torchvision.datasets", "keras.datasets", "tensorflow_datasets"]
+                
+                # Check for sklearn loaders (load_*) but ALLOW generators (make_*)
+                if "sklearn.datasets" in code:
+                    if "load_" in code or "fetch_" in code:
+                         return f"CONTRACT VIOLATION: Dataset source is '{source}'. You cannot use 'load_' or 'fetch_' from sklearn.datasets. You MAY use 'make_' functions (e.g. make_classification)."
+
+                for bad in forbidden_loaders:
                     if bad in code:
-                        return f"CONTRACT VIOLATION: Dataset source is '{source}', but code uses '{bad}'. This is strictly forbidden. You must generate data internally."
+                        return f"CONTRACT VIOLATION: Dataset source is '{source}', but code uses '{bad}'. This is strictly forbidden. You must generate data internally (e.g. numpy, make_classification)."
                         
             # 2. External Invariant: Must use authorised loaders if specified
             # (Future: Check strictly for the dataset_id)

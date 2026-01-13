@@ -1,15 +1,27 @@
 -- ==============================================================================
--- AUTONOMOUS RESEARCH ENGINE MEMORY SCHEMA (REFINED)
+-- AUTONOMOUS RESEARCH ENGINE MEMORY SCHEMA (MULTI-USER)
 -- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 0. Users (Authentication & Isolation)
+-- Purpose: Manage user identities and strictly isolate data coverage.
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- ------------------------------------------------------------------------------
 -- 1. Run Memory (Short-Term / Audit Log)
 -- Purpose: Faithfully record every iteration outcome for debugging and audit.
--- Properties: Immutable, Append-Only.
+-- Properties: Immutable, Append-Only. Scoped to a User.
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS run_memory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     run_id UUID NOT NULL,                        -- Unique ID for the specific execution run
+    user_id UUID NOT NULL REFERENCES users(id),  -- OWNER of this run
     iteration INT NOT NULL,                      -- Iteration index (0-based)
     research_goal TEXT NOT NULL,                 -- Original user prompt
     execution_mode TEXT NOT NULL,                -- 'validation' | 'scientific'
@@ -26,17 +38,19 @@ CREATE TABLE IF NOT EXISTS run_memory (
     CONSTRAINT run_memory_issue_type_check CHECK (issue_type IN ('design', 'data', 'execution', 'none'))
 );
 
--- Index for fast lookup by run_id
+-- Index for fast lookup by run_id (common) and user_id (dashboard views)
 CREATE INDEX IF NOT EXISTS idx_run_memory_run_id ON run_memory(run_id);
+CREATE INDEX IF NOT EXISTS idx_run_memory_user_id ON run_memory(user_id);
 
 -- ------------------------------------------------------------------------------
 -- 2. Knowledge Memory (Long-Term / Canonical)
 -- Purpose: Store ONLY validated, high-confidence scientific conclusions.
--- Properties: High signal-to-noise ratio. No failed experiments.
+-- Properties: High signal-to-noise ratio. Scoped to a User (Private Knowledge).
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS knowledge_memory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     run_id UUID NOT NULL,                        -- Link to the run that produced this knowledge
+    user_id UUID NOT NULL REFERENCES users(id),  -- OWNER of this knowledge
     research_question TEXT NOT NULL,             -- Final specific question answered
     final_hypothesis TEXT NOT NULL,              -- The hypothesis that was supported
     decision TEXT NOT NULL,                      -- MUST be 'Reject H0'
@@ -55,21 +69,20 @@ CREATE TABLE IF NOT EXISTS knowledge_memory (
 
 -- Index for searching by topic/question
 CREATE INDEX IF NOT EXISTS idx_knowledge_memory_question ON knowledge_memory USING gin(to_tsvector('english', research_question));
+CREATE INDEX IF NOT EXISTS idx_knowledge_memory_user_id ON knowledge_memory(user_id);
 
 -- Ensure one knowledge entry per run (Scientific Logic)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_knowledge_per_run ON knowledge_memory(run_id);
 
--- Note: FK constraint from knowledge_memory(run_id) to run_memory(run_id) is NOT added
--- because run_memory.run_id is not unique (1 run = many iterations).
-
 -- ------------------------------------------------------------------------------
 -- 3. Research Evidence (Raw Findings / Artifacts)
--- Purpose: Persist primary research artifacts (claims, excerpts) so they survive agent boundaries.
--- Properties: Write-only by Research Agent.
+-- Purpose: Persist primary research artifacts (claims, excerpts).
+-- Properties: Write-only by Research Agent. Scoped to a User.
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS research_evidence (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     run_id UUID NOT NULL,                        -- Link to the current run
+    user_id UUID NOT NULL REFERENCES users(id),  -- OWNER of this evidence
     source_type TEXT NOT NULL,                   -- 'pdf', 'web', 'generated'
     source_url TEXT NOT NULL,                    -- Origin URL or filepath
     paper_title TEXT,                            -- Optional title
@@ -81,3 +94,4 @@ CREATE TABLE IF NOT EXISTS research_evidence (
 );
 
 CREATE INDEX IF NOT EXISTS idx_research_evidence_run_id ON research_evidence(run_id);
+CREATE INDEX IF NOT EXISTS idx_research_evidence_user_id ON research_evidence(user_id);

@@ -91,6 +91,7 @@ def query_evidence(query: str) -> str:
     """
     logger.info(f"Tool 'query_evidence' called with query: {query}")
     try:
+        # Identity is handled implicitly by MemoryService via ExecutionIdentity
         results = memory_service.get_evidence(goal=query, limit=5)
         if not results:
             return "No existing evidence found."
@@ -127,12 +128,13 @@ def save_evidence(
     
     # 1. Get Run ID from Environment (Passed by Controller)
     run_id = os.environ.get("CURRENT_RUN_ID")
+    
     if not run_id:
         # Fallback if run standalone (dev mode)
         logger.warning("CURRENT_RUN_ID not set. Evidence will not be linked to a run.")
         return "Error: CURRENT_RUN_ID not set in environment. Cannot save evidence."
     
-    # 2. Save via Service
+    # 2. Save via Service (Identity handled implicitly)
     try:
         result = memory_service.write_evidence(
             run_id=run_id,

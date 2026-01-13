@@ -5,6 +5,7 @@ from .policies import CrystallizationPolicy
 from .evidence_memory import EvidenceMemory
 from .knowledge_memory import KnowledgeMemory
 from .run_memory import RunMemory
+from core.identity import ExecutionIdentity
 
 logger = logging.getLogger("MemoryService")
 
@@ -23,14 +24,28 @@ class MemoryService:
         # Policies
         self.crystallization_policy = crystallization_policy or CrystallizationPolicy()
         
+    def _get_user(self, user_id: Optional[str] = None) -> str:
+        """Helper to resolve user_id from Identity if not explicitly provided."""
+        if user_id:
+            return user_id
+        return ExecutionIdentity.get_user_id()
+
     # --- Evidence Operations ---
     
-    def get_evidence(self, goal: str, scope: str = "global", limit: int = 5) -> List[Dict[str, Any]]:
+    def get_evidence(self, goal: str, user_id: str = None, scope: str = "global", limit: int = 5) -> List[Dict[str, Any]]:
         """
         Retrieves evidence relevant to the goal.
         Scope: Currently basic text search support. Future: Handle 'local' vs 'global'.
         """
-        return self._evidence.query_evidence(query=goal, limit=limit)
+        uid = self._get_user(user_id)
+        return self._evidence.query_evidence(user_id=uid, query=goal, limit=limit)
+
+    def get_evidence_count(self, run_id: str) -> int:
+        """
+        Returns the number of evidence items saved for a specific run.
+        Used for verification of persistence.
+        """
+        return self._evidence.count_evidence(run_id=run_id)
 
     def write_evidence(self,
                        run_id: str,
@@ -39,14 +54,17 @@ class MemoryService:
                        extracted_claim: str,
                        supporting_text: str,
                        confidence: str,
+                       user_id: str = None,
                        paper_title: Optional[str] = None,
                        section: Optional[str] = None) -> str:
         """
         Writes evidence with a READ-BEFORE-WRITE duplication check.
         Uses fuzzy matching to detect semantically similar claims.
         """
-        # Guard: Check for duplicates
-        existing = self._evidence.query_evidence(query=extracted_claim, limit=5)
+        uid = self._get_user(user_id)
+        
+        # Guard: Check for duplicates (scoped to user)
+        existing = self._evidence.query_evidence(user_id=uid, query=extracted_claim, limit=5)
         if existing:
             # Use fuzzy matching for semantic similarity
             from difflib import SequenceMatcher
@@ -66,6 +84,7 @@ class MemoryService:
 
         self._evidence.record_evidence(
             run_id=run_id,
+            user_id=uid,
             source_type=source_type,
             source_url=source_url,
             paper_title=paper_title,
@@ -78,28 +97,29 @@ class MemoryService:
 
     # --- Knowledge Operations ---
 
-    def get_knowledge(self, goal: str, scope: str = "global", limit: int = 5) -> List[Dict[str, Any]]:
+    def get_knowledge(self, goal: str, user_id: str = None, scope: str = "global", limit: int = 5) -> List[Dict[str, Any]]:
         """
         Retrieves validated facts. 
         INVARIANT: Knowledge is APPEND-ONLY and high-precision.
-        
-        Scope Semantics:
-        - scope="global": Retrieves from entire knowledge base (fuzzy search).
-        - scope="goal": STRICT string match on the research goal (if supported).
         """
-        return self._knowledge.query_knowledge(query=goal, limit=limit)
+        uid = self._get_user(user_id)
+        return self._knowledge.query_knowledge(user_id=uid, query=goal, limit=limit)
 
     def write_knowledge(self,
                         run_id: str,
                         experiment_spec: Dict[str, Any],
                         evaluation_verdict: Dict[str, Any],
-                        iteration_count: int) -> str:
+                        iteration_count: int,
+                        user_id: str = None) -> str:
         """
         Writes to Knowledge Memory ONLY if the result satisfies the Crystallization Policy.
         """
+        uid = self._get_user(user_id)
+        
         if self.crystallization_policy.is_eligible(evaluation_verdict, iteration_count):
             self._knowledge.record_knowledge(
                 run_id=run_id,
+                user_id=uid,
                 experiment_spec=experiment_spec,
                 evaluation_verdict=evaluation_verdict
             )
@@ -110,11 +130,12 @@ class MemoryService:
 
     # --- Run Memory Operations (Audit) ---
 
-    def get_past_runs(self, goal: str = None, failure_type: Optional[FailureType] = None, run_id: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_past_runs(self, goal: str = None, failure_type: Optional[FailureType] = None, run_id: str = None, limit: int = 10, user_id: str = None) -> List[Dict[str, Any]]:
         """
         Retrieves past runs, optionally filtering by specific failure types (e.g. DESIGN failures).
         """
-        return self._run_memory.query_run_memory(query=goal, issue_type=failure_type, run_id=run_id, limit=limit)
+        uid = self._get_user(user_id)
+        return self._run_memory.query_run_memory(user_id=uid, query=goal, issue_type=failure_type, run_id=run_id, limit=limit)
 
     def write_run(self,
                   run_id: str,
@@ -122,12 +143,16 @@ class MemoryService:
                   research_goal: str,
                   experiment_spec: Dict[str, Any],
                   evaluation_verdict: Dict[str, Any],
+                  user_id: str = None,
                   feedback_passed: str = None):
         """
         Logs a run iteration. Append-only.
         """
+        uid = self._get_user(user_id)
+        
         self._run_memory.record_iteration(
             run_id=run_id,
+            user_id=uid,
             iteration=iteration,
             research_goal=research_goal,
             experiment_spec=experiment_spec,

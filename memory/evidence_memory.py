@@ -15,6 +15,7 @@ class EvidenceMemory:
 
     def record_evidence(self,
                         run_id: str,
+                        user_id: str,
                         source_type: str,
                         source_url: str,
                         extracted_claim: str,
@@ -31,6 +32,7 @@ class EvidenceMemory:
         try:
             data = {
                 "run_id": str(run_id),
+                "user_id": str(user_id),
                 "source_type": source_type,
                 "source_url": source_url,
                 "paper_title": paper_title,
@@ -46,7 +48,7 @@ class EvidenceMemory:
         except Exception as e:
             logger.error(f"[EvidenceMemory] Failed to record evidence: {e}")
 
-    def query_evidence(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def query_evidence(self, user_id: str, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
         Retrieves existing evidence relevant to the query.
         Current implementation: Text search via 'ilike' on extracted_claim.
@@ -61,6 +63,7 @@ class EvidenceMemory:
             # For robustness, we search extracted_claim
             response = self.manager.client.table("research_evidence")\
                 .select("*")\
+                .eq("user_id", str(user_id))\
                 .ilike("extracted_claim", f"%{query}%")\
                 .limit(limit)\
                 .execute()
@@ -70,3 +73,16 @@ class EvidenceMemory:
         except Exception as e:
             logger.error(f"[EvidenceMemory] Failed to query evidence: {e}")
             return []
+    def count_evidence(self, run_id: str) -> int:
+        """
+        Counts the number of evidence records for a given run_id.
+        """
+        if not self.manager.is_enabled:
+            return 0
+        
+        try:
+            res = self.manager.client.table("research_evidence").select("count", count="exact").eq("run_id", str(run_id)).execute()
+            return res.count
+        except Exception as e:
+            logger.error(f"[EvidenceMemory] Failed to count evidence: {e}")
+            return 0

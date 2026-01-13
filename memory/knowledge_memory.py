@@ -15,6 +15,7 @@ class KnowledgeMemory:
 
     def record_knowledge(self,
                          run_id: str,
+                         user_id: str,
                          experiment_spec: Dict[str, Any],
                          evaluation_verdict: Dict[str, Any]):
         """
@@ -59,6 +60,7 @@ class KnowledgeMemory:
 
             data = {
                 "run_id": str(run_id),
+                "user_id": str(user_id),
                 "research_question": spec_body.get("research_question", "Unknown"),
                 "final_hypothesis": spec_body.get("hypotheses", {}).get("H1", "Unknown"),
                 "decision": decision,
@@ -76,7 +78,7 @@ class KnowledgeMemory:
         except Exception as e:
             logger.error(f"[KnowledgeMemory] Failed to record knowledge: {e}")
 
-    def query_knowledge(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def query_knowledge(self, user_id: str, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
         Retrieves validated facts relevant to the query.
         """
@@ -86,6 +88,7 @@ class KnowledgeMemory:
         try:
             response = self.manager.client.table("knowledge_memory")\
                 .select("*")\
+                .eq("user_id", str(user_id))\
                 .ilike("research_question", f"%{query}%")\
                 .limit(limit)\
                 .execute()

@@ -41,7 +41,20 @@ def run_statistical_test(test_name: str, data_a: list[float], data_b: list[float
         #   scipy 'less' means distribution underlying first sample is stricly less than the underlying distribution of the second sample
         #   So if data_a is Treatment and data_b is Baseline:
         #   H1: Treatment < Baseline => alternative='less'
-        
+        # Data Check: Zero value suppression
+        # If arrays are identical or effectively identical, p-value calc will fail or warn.
+        # This often happens in procedural runs with fixed seeds or simplistic models.
+        if data_b and np.allclose(data_a, data_b, atol=1e-9):
+            logger.warning("Data arrays are identical. Skipping statistical test to avoid RuntimeWarning.")
+            return json.dumps({
+                "statistic": 0.0,
+                "p_value": 1.0, 
+                "decision": "Fail to reject H0",
+                "alpha_used": alpha,
+                "test_used": test_name,
+                "note": "Identical inputs detected. Variance is zero."
+            }, indent=2)
+
         if test_name == "t-test_ind":
             stat, p_val = stats.ttest_ind(data_a, data_b, alternative=alternative)
             result = {"statistic": stat, "p_value": p_val}

@@ -16,6 +16,7 @@ class RunMemory:
 
     def record_iteration(self,
                          run_id: str,
+                         user_id: str,
                          iteration: int,
                          research_goal: str,
                          experiment_spec: Dict[str, Any],
@@ -49,6 +50,7 @@ class RunMemory:
 
             data = {
                 "run_id": str(run_id),
+                "user_id": str(user_id),
                 "iteration": iteration,
                 "research_goal": research_goal,
                 "execution_mode": execution_mode,
@@ -65,7 +67,7 @@ class RunMemory:
         except Exception as e:
             logger.error(f"[RunMemory] Failed to record iteration: {e}")
 
-    def query_run_memory(self, query: str = None, issue_type: Optional[FailureType] = None, run_id: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+    def query_run_memory(self, user_id: str, query: str = None, issue_type: Optional[FailureType] = None, run_id: str = None, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Retrieves past runs. 
         useful for finding past failures to avoid repetition.
@@ -74,7 +76,7 @@ class RunMemory:
             return []
             
         try:
-            builder = self.manager.client.table("run_memory").select("*")
+            builder = self.manager.client.table("run_memory").select("*").eq("user_id", str(user_id))
             
             if query:
                 builder = builder.ilike("research_goal", f"%{query}%")

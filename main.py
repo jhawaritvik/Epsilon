@@ -85,7 +85,26 @@ def main():
     
     # 3. Initialize and Run Controller
     try:
-        controller = ResearchController(max_iterations=5)
+        from memory.user_manager import UserManager
+        import getpass
+        
+        print("\n--- LOGIN TO RESEARCH ENGINE ---")
+        user_email = input("Email: ").strip()
+        if not user_email:
+            print("Email is required.")
+            sys.exit(1)
+            
+        user_password = getpass.getpass("Password: ").strip()
+        
+        try:
+            print(f"Logging in as {user_email}...")
+            user_id = UserManager.login(user_email, user_password)
+            print(f"✅ Success. Session ID: {user_id}")
+        except Exception as e:
+            print(f"❌ Login Failed: {e}")
+            sys.exit(1)
+        
+        controller = ResearchController(user_id=user_id, max_iterations=5)
         controller.run(research_goal)
         print("\n==================================================")
         print("              RESEARCH COMPLETED                  ")

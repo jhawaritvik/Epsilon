@@ -32,6 +32,7 @@ def query_knowledge(query: str) -> str:
     """
     logger.info(f"Tool 'query_knowledge' called with query: {query}")
     try:
+        # Identity implicitly handled
         results = memory_service.get_knowledge(goal=query, limit=3)
         if not results:
             return "No specific crystallized knowledge found."
@@ -51,11 +52,8 @@ def query_past_failures(query: str = None) -> str:
     try:
         # We look for all failure types to be safe
         results = memory_service.get_past_runs(goal=query, limit=5)
-        # Filter for failures only client-side if the service returns all, 
-        # but our service currently returns all runs if verdict is not specified.
-        # Let's rely on the agent reading the 'classification'/'issue_type'.
-        # Better: Filter specifically for failed runs in logic
         
+        # Client-side filtering for failed runs
         failed_runs = [r for r in results if r.get("classification") == "failed"]
         
         if not failed_runs:
@@ -128,6 +126,13 @@ You do NOT:
 - `query_past_failures(query)`: Check for specific failure patterns.
 - `corpus_query(query)`: Search evidence memory.
 
+**DATA MODALITY CONSISTENCY (CRITICAL)**:
+- You MUST ensure the dataset type matches the research domain.
+- **Tabular/Numerical/Optimization**: MUST use scikit-learn datasets (e.g. `california_housing`, `diabetes`) or `procedural` synthetic data. **FORBIDDEN**: Image (CIFAR, MNIST), Text (GLUE), Audio.
+- **Computer Vision**: MUST use Image datasets.
+- **NLP**: MUST use Text datasets.
+- **Reasoning**: Selecting CIFAR-10 for a tabular regression problem is a CRITICAL FAILURE.
+
 Your output MUST be a single valid JSON object with no extra text.
 **CRITICAL**: Ensure strictly valid JSON. No trailing commas. No comments (// or #) inside the JSON.
 Do not markdown format the JSON (no ```json code blocks). Just the raw JSON string.
@@ -156,10 +161,10 @@ Required Output Schema:
     },
     "data_modality": {
       "type": "external | procedural | simulation",
-      "dataset_id": "Optional: explicit resolvable dataset ID (e.g., cifar10)",
-      "source_family": "Optional: IF type=external AND resolver choice allowed",
-      "generation_method": "Optional: IF type=procedural",
-      "description": ""
+      "dataset_id": "Preferred: Explicit ID (e.g. 'sklearn.load_digits' or 'mnist'). IF UNKNOWN, leave null and use 'description'.",
+      "source_family": "Fallback: SHORT keyword for search (e.g. 'fMRI', 'financial-news'). MAX 2 words.",
+      "description": "Recommended: Valid HuggingFace search query describing the data (e.g. 'tabular credit risk classification'). Agent will resolve this to a real ID.",
+      "generation_method": "Optional: IF type=procedural"
     }
   },
   "statistical_analysis_plan": {
