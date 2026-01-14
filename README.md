@@ -34,7 +34,7 @@ The Epsilon system uses a structured memory architecture to ensure agents operat
     We strongly recommend running Epsilon inside a **Docker container** or an isolated **Virtual Machine (VM)** with limited network access.
 
 2.  **Weak Authentication**:  
-    The current `server.py` uses simple in-memory storage and weak password hashing (SHA-256 without salt). **DO NOT expose this API to the public internet** without putting it behind a proper API Gateway or Auth provider.
+    The current `UserManager` uses simple weak password hashing (SHA-256 without salt). **Use a secure password** if sharing the database, or assume single-tenant usage.
 
 ## Deployment & Hosting
 
