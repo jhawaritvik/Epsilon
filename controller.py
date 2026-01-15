@@ -118,35 +118,93 @@ class ResearchController:
 
         self._cleanup_artifacts()
         
-        try:
-            research_result = Runner.run_sync(research_agent, research_goal, max_turns=30)
-        except Exception as e:
-            logger.error(f"Research Agent failed: {e}")
-            self.emit("run_error", {"error": f"Research phase failed: {e}"})
-            return False
+        max_retries = 3
+        attempt = 0
+        research_feedback = ""
+
+        while attempt < max_retries:
+            # Inner Retry Loop for API/Runner Stability (Rate Limits)
+            inner_attempt = 0
+            while inner_attempt < 3:
+                try:
+                    # If retrying, append feedback to the goal to nudge the agent
+                    current_prompt = research_goal
+                    if research_feedback:
+                        current_prompt += f"\n\n[SYSTEM FEEDBACK]: {research_feedback}"
+                        logger.warning(f"Retrying Research Phase (Attempt {attempt+1}/{max_retries}) with feedback.")
+                    
+                    # Run the agent
+                    research_result = Runner.run_sync(research_agent, current_prompt, max_turns=30)
+                    # Break inner loop if successful
+                    break 
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "429" in err_str or "rate limit" in err_str:
+                        logger.warning(f"Rate Limit Hit. Sleeping 20s... (Attempt {inner_attempt+1}/3)")
+                        time.sleep(20)
+                        inner_attempt += 1
+                        if inner_attempt >= 3:
+                            # If we exhausted inner retries, checking if we can proceed anyway
+                            evidence_count = self.memory_service.get_evidence_count(str(self.run_id))
+                            if evidence_count >= 3:
+                                logger.warning("Research Agent crashed on Rate Limit, BUT sufficient evidence matches persistence check. Proceeding with partial data.")
+                                self.research_corpus = ["(Partial Corpus due to Rate Limit Crash)"]
+                                self.emit("log", {"message": "Rate Limit Encountered. Proceeding with partial evidence."})
+                                return True
+                            
+                            self.emit("run_error", {"error": f"Research phase failed (Rate Limit): {e}"})
+                            return False
+                    else:
+                        # Non-retryable error
+                        # Fallback check for evidence
+                        evidence_count = self.memory_service.get_evidence_count(str(self.run_id))
+                        if evidence_count >= 3:
+                             logger.warning(f"Research Agent failed ({e}), but evidence exists. Proceeding.")
+                             self.research_corpus = ["(Partial Corpus due to Agent Error)"]
+                             return True
+                        logger.error(f"Research Agent failed: {e}")
+                        self.emit("run_error", {"error": f"Research phase failed: {e}"})
+                        return False
+                
+            corpus_content = research_result.final_output.strip() if research_result.final_output else ""
+            if not corpus_content:
+                # Fallback check: Did we get evidence?
+                evidence_count = self.memory_service.get_evidence_count(str(self.run_id))
+                if evidence_count >= 3:
+                     logger.warning("Research Agent produced no summary, but evidence exists. Proceeding.")
+                     self.research_corpus = ["(Corpus Missing - Evidence Only)"]
+                     return True
+
+                logger.error("Research Agent produced no output.")
+                self.emit("run_error", {"error": "No research corpus generated"})
+                return False
+                
+            # [VERIFICATION] Ensure evidence was actually persisted to DB
+            evidence_count = self.memory_service.get_evidence_count(str(self.run_id))
+            logger.info(f"[RESEARCH] Evidence Persistence Check: {evidence_count} items saved.")
             
-        corpus_content = research_result.final_output.strip() if research_result.final_output else ""
-        if not corpus_content:
-            logger.error("Research Agent produced no output.")
-            self.emit("run_error", {"error": "No research corpus generated"})
-            return False
+            if evidence_count > 0:
+                # Success!
+                self.research_corpus = [corpus_content]
+                logger.info("Research Corpus Constructed.")
+                self.emit("log", {"message": f"[RESEARCH] Corpus constructed ({len(corpus_content)} chars). Evidence items: {evidence_count}"})
+                self.emit("agent_completed", {"agent": "Research"})
+                return True
             
-        # [VERIFICATION] Ensure evidence was actually persisted to DB
-        evidence_count = self.memory_service.get_evidence_count(str(self.run_id))
-        logger.info(f"[RESEARCH] Evidence Persistence Check: {evidence_count} items saved.")
-        
-        if evidence_count == 0:
-            msg = "CRITICAL: Research Agent reported success but 0 evidence rows persisted in DB."
-            logger.error(msg)
-            self.emit("run_error", {"error": msg})
-            print(f"\n❌ {msg}\n   (Check logs for 409 Conflict or User ID errors)\n")
-            return False
-        
-        self.research_corpus = [corpus_content]
-        logger.info("Research Corpus Constructed.")
-        self.emit("log", {"message": f"[RESEARCH] Corpus constructed ({len(corpus_content)} chars). Evidence items: {evidence_count}"})
-        self.emit("agent_completed", {"agent": "Research"})
-        return True
+            # Failure case (0 items)
+            attempt += 1
+            if attempt < max_retries:
+                msg = f"WARNING: Research Agent found 0 items. Retrying ({attempt}/{max_retries})..."
+                logger.warning(msg)
+                self.emit("log", {"message": msg})
+                research_feedback = "CRITICAL SYSTEM ALERT: You performed research but FAILED to call `save_evidence`. The system detects 0 items in memory. You MUST call `save_evidence` for at least 3 findings immediately to fix this. Do not just summarize; persist the data."
+            else:
+                # Max retries reached
+                msg = "CRITICAL: Research Agent reported success but 0 evidence rows persisted in DB after multiple retries."
+                logger.error(msg)
+                self.emit("run_error", {"error": msg})
+                print(f"\n❌ {msg}\n   (Check logs for 409 Conflict or User ID errors)\n")
+                return False
 
     def _run_experiment_loop(self, research_goal: str):
         feedback = None
