@@ -365,8 +365,14 @@ Perform the evaluation based on the following context:
                 )
                 if "crystallized" in result:
                     logger.info("SUCCESS: CRYSTALLIZED.")
-                    self.emit("log", {"message": "🎉 ROBUST CONCLUSION REACHED! Knowledge crystallized."})
-                    print("\n🎉 ROBUST CONCLUSION REACHED!")
+                    
+                    # [NEW] Generate Final Report
+                    from core.report_generator import ReportGenerator
+                    report_path = ReportGenerator.generate(str(self.run_id), research_goal)
+                    
+                    self.emit("log", {"message": f"🎉 ROBUST CONCLUSION REACHED! Report: {report_path}"})
+                    print(f"\n🎉 ROBUST CONCLUSION REACHED!\n📄 Report generated: {report_path}")
+                    
                     self.emit("agent_completed", {"agent": "Evaluate"})
                     self.emit("iteration_completed", {
                         "iteration": self.current_iteration, "classification": "robust",
@@ -377,7 +383,7 @@ Perform the evaluation based on the following context:
                         research_goal=research_goal, experiment_spec=experiment_spec,
                         evaluation_verdict=verdict, feedback_passed="Success"
                     )
-                    self.emit("run_completed", {"status": "success", "classification": "robust"})
+                    self.emit("run_completed", {"status": "success", "classification": "robust", "report": report_path})
                     return
 
             # Feedback Generation
@@ -400,8 +406,19 @@ Perform the evaluation based on the following context:
             self.current_iteration += 1
 
         logger.info("Max iterations reached.")
-        self.emit("log", {"message": "Max iterations reached. Run ending."})
-        self.emit("run_completed", {"status": "max_iterations"})
+        
+        # [NEW] Generate Report even slightly if failed/max_iter? 
+        # Typically we only want the final report if there's a result, but useful for debugging too.
+        # Let's generate it anyway so user can see what happened.
+        from core.report_generator import ReportGenerator
+        try:
+             report_path = ReportGenerator.generate(str(self.run_id), research_goal)
+             print(f"\n📄 Final Report (Max Iters): {report_path}")
+        except Exception as e:
+             report_path = f"Failed to generate: {e}"
+
+        self.emit("log", {"message": f"Max iterations reached. Report: {report_path}"})
+        self.emit("run_completed", {"status": "max_iterations", "report": report_path})
 
 if __name__ == "__main__":
     import argparse

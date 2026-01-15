@@ -70,6 +70,50 @@ def read_pdf(url: str, title: str = None) -> str:
         logger.error(f"Failed to read PDF {url}: {e}")
         return f"Failed to read PDF: {e}"
 
+@function_tool
+def read_webpage(url: str) -> str:
+    """
+    Reads the text content of a web page (HTML).
+    Use this for blog posts, articles, and documentation that are NOT PDFs.
+    """
+    logger.info(f"Tool 'read_webpage' called with url: {url}")
+    try:
+        # Standard headers to avoid 403 blocks from some sites
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        # Simple text extraction (heuristic)
+        # In a real scraper we'd use BeautifulSoup, but let's keep dependencies low if possible.
+        # However, for research grade, we should probably install bs4 if needed, but let's try naive first?
+        # No, naive regex is bad for HTML. Let's assume bs4 is available or install it.
+        # Actually, let's use the 'install_package' philosophy or just rely on simple string stripping if bs4 is missing.
+        
+        # Let's import bs4 inside here to be safe, or fall back
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Kill javascript and style elements
+            for script in soup(["script", "style"]):
+                script.extract()
+            text = soup.get_text()
+            # break into lines and remove leading and trailing space on each
+            lines = (line.strip() for line in text.splitlines())
+            # break multi-headlines into a line each
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            # drop blank lines
+            text = '\n'.join(chunk for chunk in chunks if chunk)
+        except ImportError:
+            return "Error: BeautifulSoup (bs4) not installed. Please install it to read webpages."
+            
+        return f"Webpage read successfully from {url}. {len(text)} characters extracted. Use save_evidence to persist key findings."
+
+    except Exception as e:
+        logger.error(f"Failed to read webpage {url}: {e}")
+        return f"Failed to read webpage: {e}"
+
 # notes_store REMOVED - violates memory architecture principles
 # All research data must flow through Evidence Memory for:
 # - Persistence across agent boundaries
@@ -169,7 +213,17 @@ You are the **Research Exploration Agent**. Your primary and sole goal is to **C
 
 **Process**:
 1.  **Memory Check**: Query existing evidence with `query_evidence`.
-2.  **Analyze**: Identify key gaps in knowledge.
+    - `web_search(query)`: Search for sources.
+    - `read_pdf(url)`: Read academic papers (PDFs).
+    - `read_webpage(url)`: Read blog posts, documentation, and articles (HTML).
+    - `save_evidence(claim, source, ...)`.
+3.  **Persistence**: You MUST save key findings using `save_evidence`.
+    - If you find 0 relevant evidence, the pipeline will HALT.
+    - Aim for at least 3 distinct pieces of evidence.
+4.  **Adaptability**:
+    - If `read_pdf` fails (e.g. "Stream ended unexpectedly" or 403), do **NOT** retry the same URL.
+    - If the link is likely a blog or article (not ending in .pdf), use `read_webpage` instead.
+    - Try alternative sources.
 3.  **Search & Filter**: Use `web_search` for relevant sources.
 4.  **Ingest & Persist**: Use `read_pdf` to extract content, then `save_evidence` for critical claims.
 5.  **Final Summary**: Return research corpus summary.
@@ -183,7 +237,7 @@ You are the **Research Exploration Agent**. Your primary and sole goal is to **C
 research_agent = Agent(
     name="Research Exploration Agent",
     instructions=research_instructions,
-    tools=[query_evidence, web_search, read_pdf, save_evidence],
+    tools=[web_search, read_pdf, read_webpage, query_evidence, save_evidence],
 )
 
 # --- Main Execution ---

@@ -11,6 +11,29 @@ latest_run_analysis.md
 goal.txt
 research_prompt.txt
 
+
+# Common User/IDE Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project Specific
+dataset_used.json
+raw_results.json
+run_experiment.py
+execution.log
+experiment_summary.json
+final_report.md
+*.png
+*.html
+experiments_cache/
+convert_report.py
+regenerate_report_tool.py
+
+# Supabase/Migration
+supabase/functions/
+
 # OS specifics
 .DS_Store
 Thumbs.db

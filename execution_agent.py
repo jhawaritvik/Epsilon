@@ -283,6 +283,25 @@ def execute_experiment(code: str, execution_mode: str = "validation") -> str:
     except Exception as e:
         return f"An error occurred during execution: {e}"
 
+@function_tool
+def install_package(package_name: str) -> str:
+    """
+    Installs a Python package into the current environment using pip.
+    Use this ONLY when you encounter a `ModuleNotFoundError` or need a specific library not present.
+    """
+    logger.info(f"install_package called for: {package_name}")
+    try:
+        # Use module pip to ensure it installs in the current python environment
+        cmd = [sys.executable, "-m", "pip", "install", package_name]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        
+        if result.returncode == 0:
+            return f"Successfully installed '{package_name}'. Output:\n{result.stdout}"
+        else:
+            return f"Failed to install '{package_name}'. Error:\n{result.stderr}"
+    except Exception as e:
+        return f"Error executing pip install: {e}"
+
 # ============================================================
 # AGENT INSTRUCTIONS
 # ============================================================
@@ -312,8 +331,16 @@ The Code Agent does not decide how data should be obtained; it infers the data a
 3. **Autonomous Execution**: Use the `execute_experiment` tool to run your generated code.
    - You MUST pass the `execution_mode` provided in the input (default to "validation").
    - `execute_experiment(code=..., execution_mode=...)`
-4. **Self-Correction**: If execution fails, you MUST diagnose the specific error from the logs and regenerate the code to fix it.
+4. **Self-Correction & Dependency Management**:
+   - If execution fails with `ModuleNotFoundError`, use the `install_package` tool to install the missing library.
+   - Then, RE-EXECUTE the experiment.
+   - Do not ask for permission; just fix the environment.
+   - General errors: Diagnose from logs, regenerate code, and retry (at least 3 attempts).
 5. **Evidence Generation**: Ensure all outputs (metrics, logs) are saved as machine-readable artifacts.
+6. **MANDATORY VISUALIZATION**: You MUST generate at least one visualization using `matplotlib` to illustrate your findings (e.g., loss curve, comparison bar chart).
+   - Save it as a PNG file, e.g., `comparison_plot.png`.
+   - Ensure the plot has a title, labels, and legend.
+   - Do NOT use `plt.show()`; use `plt.savefig()`.
 
 **Operating Constraints**:
 - **NO DESIGN AUTHORITY**: Do not change hypotheses, variables, or model designs.
@@ -335,14 +362,12 @@ The Code Agent does not decide how data should be obtained; it infers the data a
      - **CRITICAL**: Convert ALL numpy types to native Python.
 4. Call `execute_experiment` with the generated code and the `execution_mode` from the input.
 5. **MANDATORY Iterative Debugging**:
-   - If `execute_experiment` returns a failure (e.g., ImportError, SyntaxError, runtime error):
-     - **DO NOT** return a "failed" status immediately.
-     - **DO NOT** give up.
-     - **DIAGNOSE** the error from the logs.
-     - **REGENERATE** the full `run_experiment.py` code with the fix.
-     - **RE-EXECUTE** by calling `execute_experiment` again.
+   - If `execute_experiment` returns a failure:
+     - Check for `ModuleNotFoundError`. If found -> `install_package("missing_lib")`.
+     - Other errors -> regenerate code.
+     - **RE-EXECUTE** the tool.
    - You MUST attempt at least 3 repair cycles before declaring failure.
-6. Confirm all artifacts (`run_experiment.py`, `dataset_used.json`, `raw_results.json`, `execution.log`) are produced.
+6. Confirm all artifacts (`run_experiment.py`, `dataset_used.json`, `raw_results.json`, `execution.log`, `*.png`) are produced.
 
 Your output MUST be a valid JSON object with the following schema:
 {
@@ -361,7 +386,7 @@ DO NOT output conversational text. ONLY output the JSON.
 code_execution_agent = Agent(
     name="Code & Execution Agent",
     instructions=execution_instructions,
-    tools=[dataset_resolver, execute_experiment],
+    tools=[dataset_resolver, execute_experiment, install_package],
 )
 
 # ============================================================
