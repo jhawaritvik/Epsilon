@@ -1,6 +1,6 @@
 # Epsilon: Autonomous Research Engine
 
-[![Epsilon Architecture](https://img.shields.io/badge/Status-Operational-green)](https://github.com/yourusername/epsilon)
+[![Epsilon Architecture](https://img.shields.io/badge/Status-Operational-green)](https://github.com/jhawaritvik/Epsilon)
 [![Python](https://img.shields.io/badge/Python-3.9+-blue)](https://python.org)
 
 Epsilon is an **Autonomous Research Engine** capable of conducting end-to-end scientific discovery. It takes a high-level research goal, breaks it down into hypotheses, designs methods, executes python code experiments, statistically validates results, and writes a comprehensive final report—all without human intervention.
@@ -20,8 +20,7 @@ Epsilon is an **Autonomous Research Engine** capable of conducting end-to-end sc
 
 Epsilon uses a centralized **Controller** to orchestrate specialized agents.
 
-![System Architecture](assets/architecture.png)
-*Figure 2: Epsilon System Architecture - showing the Controller, Agents, and Memory interaction.*
+
 
 ### The "Epistemic Loop"
 1.  **Research**: The `ResearchAgent` gathers background context and formulated hypotheses.
@@ -37,8 +36,7 @@ Epsilon uses a centralized **Controller** to orchestrate specialized agents.
 
 Epsilon generates visual data analysis as part of its reporting pipeline.
 
-![Example Plot](assets/example_plot.png)
-*Figure 1: Example of a variance comparison plot generated automatically during a regularization experiment.*
+
 
 The final output is a self-contained HTML report containing:
 *   Executive Summary (LLM generated)
