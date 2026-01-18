@@ -145,16 +145,48 @@ class ReportGenerator:
         html_content = re.sub(r'(?<!!)\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank" class="artifact-link">\1</a>', html_content)
         
         # Structural Formatting
-        html_content = html_content.replace("\n# ", "\n<h1 class='title'>").replace("</h1>\n", "</h1>")
-        html_content = html_content.replace("\n## ", "\n<h2 class='section-header'>").replace("</h2>\n", "</h2>")
-        html_content = html_content.replace("\n### ", "\n<h3 class='subsection-header'>").replace("</h3>\n", "</h3>")
-        html_content = html_content.replace("**", "<strong>").replace("**", "</strong>")
+        # Fix: Handle title at start of string (no leading newline)
+        html_content = re.sub(r'(^|\n)# (.*?)(\n|$)', r'\1<h1 class="title">\2</h1>\3', html_content)
+        html_content = re.sub(r'\n## (.*?)\n', r'\n<h2 class="section-header">\1</h2>\n', html_content)
+        html_content = re.sub(r'\n### (.*?)\n', r'\n<h3 class="subsection-header">\1</h3>\n', html_content)
+        
+        # Fix: Properly handle bold (**text**) and italic (*text*) pairs
+        html_content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html_content)
+        html_content = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'<em>\1</em>', html_content)
+        
         html_content = html_content.replace("```json", "<div class='code-block'><pre><code class='json'>").replace("```", "</code></pre></div>")
         
         # Turn bullet points into styled list items
         html_content = re.sub(r'\n- (.*)', r'\n<div class="list-item">• \1</div>', html_content)
         
-        html_content = html_content.replace("\n", "<br>\n")
+        # 3.4 Fix newline flattening (Semantic Paragraphs)
+        html_content = re.sub(r'\n{2,}', '</p><p>', html_content)
+        html_content = f"<p>{html_content}</p>"
+
+        # 3.1 Introduce semantic blocks
+        html_content = html_content.replace(
+            '<h2 class="section-header">1. Executive Summary</h2>',
+            '<div class="section highlight"><h2 class="section-header">1. Executive Summary</h2>'
+        )
+        html_content = html_content.replace(
+            '<h2 class="section-header">2. Methodology</h2>',
+            '</div><div class="section"><h2 class="section-header">2. Methodology</h2>'
+        )
+        html_content = html_content.replace(
+            '<h2 class="section-header">4. Audit Trail</h2>',
+            '</div><div class="section archive"><h2 class="section-header">4. Audit Trail</h2>'
+        )
+
+        # 3.3 Make metrics feel "instrumented" (Metric Cards)
+        html_content = html_content.replace(
+            '<h3 class="subsection-header">Quantitative Metrics</h3>',
+            '<h3 class="subsection-header">Quantitative Metrics</h3>\n<div class="metric-box">'
+        )
+        # Close the metric box before the Audit Trail section starts (double closing div)
+        html_content = html_content.replace(
+            '</div><div class="section archive">', 
+            '</div></div><div class="section archive">'
+        )
         
         # Cyberpunk / Sci-Fi Terminal CSS
         full_html = f"""
@@ -174,7 +206,7 @@ class ReportGenerator:
                     --accent-secondary: #7aa2f7; /* Blue Neon */
                     --border-color: #24283b;
                     --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-                    --glow: 0 0 10px rgba(0, 255, 200, 0.2);
+                    --glow: 0 0 6px rgba(0, 255, 200, 0.12);
                 }}
                 
                 body {{
@@ -239,11 +271,11 @@ class ReportGenerator:
                     color: var(--accent-secondary);
                     font-size: 1.4rem;
                     text-transform: uppercase;
-                    border-left: 3px solid var(--accent-secondary);
-                    padding-left: 15px;
-                    margin-top: 50px;
+                    padding-left: 0;
+                    margin-top: 0;
                     margin-bottom: 25px;
                     letter-spacing: 1px;
+                    border-left: none;
                 }}
                 
                 h3, .subsection-header {{
@@ -255,6 +287,38 @@ class ReportGenerator:
                 p, li {{
                     font-size: 0.95rem;
                     color: #a9b1d6;
+                }}
+
+                .section {{
+                    margin-bottom: 50px;
+                }}
+
+                .section.highlight {{
+                    background: linear-gradient(180deg, rgba(0,255,200,0.04), transparent);
+                    border-left: 3px solid var(--accent-color);
+                    padding: 20px 25px;
+                }}
+
+                .section.archive {{
+                    background: #0f1117;
+                    border: 1px dashed var(--border-color);
+                    padding: 20px;
+                    opacity: 0.9;
+                }}
+
+                .metric-box {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 15px;
+                    margin: 20px 0;
+                }}
+
+                .metric-box .list-item {{
+                    background: #0d0f14;
+                    border: 1px solid var(--border-color);
+                    padding: 15px;
+                    font-size: 0.85rem;
+                    list-style-type: none; 
                 }}
 
                 .code-block {{
@@ -313,6 +377,15 @@ class ReportGenerator:
                     border: 1px solid #333;
                 }}
                 
+                .footer {{
+                    margin-top: 60px;
+                    padding-top: 20px;
+                    border-top: 1px solid var(--border-color);
+                    font-size: 0.75rem;
+                    color: var(--text-muted);
+                    text-align: center;
+                }}
+
                 /* Scrollbar */
                 ::-webkit-scrollbar {{
                     width: 8px;
@@ -337,6 +410,10 @@ class ReportGenerator:
                 </div>
                 <div class="content">
                     {html_content}
+                    <div class="footer">
+                        EPSILON AUTONOMOUS RESEARCH ENGINE<br>
+                        Deterministic • Auditable • Reproducible
+                    </div>
                 </div>
             </div>
         </body>
