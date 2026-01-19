@@ -1,0 +1,21 @@
+goal: "Does network depth improve accuracy more than width for image classification?"
+expected:
+  data_modality: vision
+  dataset_family: torchvision
+  execution_mode: validation
+  min_artifacts: 6
+  allowed_failure_types: []
+  statistical_test: t-test_ind
+  model_family: convolutional_network
+
+description: |
+  This test verifies that the pipeline correctly handles vision tasks and
+  neural architecture comparisons.
+  
+  Expected behavior:
+  - Design Agent should recognize this as a vision task
+  - Execution Agent should use torchvision dataset (MNIST or CIFAR)
+  - Two architectures should be compared: deep-narrow vs shallow-wide
+  - Evaluation Agent should run appropriate statistical test
+  - All vision-specific artifacts should be generated (plots showing images)
+  - No modality violations should occur

@@ -1,0 +1,21 @@
+goal: "Does L2 regularization reduce variance compared to capacity reduction?"
+expected:
+  data_modality: tabular
+  dataset_family: sklearn
+  execution_mode: validation
+  min_artifacts: 6
+  allowed_failure_types: []
+  statistical_test: t-test_ind
+  model_family: neural_network
+
+description: |
+  This test verifies that the pipeline correctly handles a comparison between
+  two variance reduction strategies: L2 regularization vs capacity reduction.
+  
+  Expected behavior:
+  - Design Agent should create a specification comparing two conditions
+  - Execution Agent should use sklearn tabular dataset
+  - Both baseline and treatment should train successfully
+  - Evaluation Agent should run t-test
+  - All required artifacts should be generated
+  - Memory should record the finding appropriately

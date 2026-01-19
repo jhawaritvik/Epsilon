@@ -1,0 +1,21 @@
+goal: "How does label noise affect model calibration in tabular classification?"
+expected:
+  data_modality: tabular
+  dataset_family: sklearn
+  execution_mode: validation
+  min_artifacts: 6
+  allowed_failure_types: []
+  statistical_test: t-test_ind
+  model_family: classifier
+
+description: |
+  This test verifies that the pipeline correctly handles data quality studies
+  and calibration metrics.
+  
+  Expected behavior:
+  - Design Agent should create a comparison between clean vs noisy labels
+  - Execution Agent should use sklearn classification dataset
+  - Code should measure calibration (e.g., ECE, MCE, or Brier score)
+  - Evaluation Agent should compare calibration metrics statistically
+  - Plots should show calibration curves
+  - All artifacts should demonstrate the effect of label noise
