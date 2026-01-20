@@ -137,7 +137,37 @@ Generates a trust report with:
 
 ---
 
+### Phase 5: Petri Fuzz Testing (Optional)
+
+#### `petri/`
+Behavioral fuzz testing for **instruction brittleness** using Anthropic's Petri methodology.
+
+**Purpose**: Tests how well agents resist adversarial prompts that attempt to:
+- **Instruction boundary erosion** - Blur agent authority
+- **Prompt-induced authority creep** - Exceed contractual limits
+- **Tool misuse** - Call forbidden tools
+
+**Components**:
+- `special_instructions.py` - 30+ adversarial probes per agent type
+- `violation_scorer.py` - Pattern-based violation detection
+- `conftest.py` - Fixtures, transcript recording, agent wrappers
+- `test_instruction_fuzz.py` - Offline scorer tests + live brittleness tests
+
+**Running Petri Tests**:
+```bash
+# Offline tests (no API calls, pattern matching only)
+pytest tests/petri/test_instruction_fuzz.py::TestViolationScorer -v
+
+# Live fuzz tests (requires OpenAI API key, incurs costs)
+pytest tests/petri/ -m petri --petri-run -v
+```
+
+**Transcripts**: Saved to `tests/petri/transcripts/` for review.
+
+---
+
 ## Running Tests
+
 
 ### Run All Tests
 ```bash
@@ -194,6 +224,7 @@ Available markers (defined in `pytest.ini`):
 - `metrics` - Metrics collection validation
 - `integration` - End-to-end integration tests
 - `slow` - Tests that take significant time to run
+- `petri` - Petri fuzz tests for instruction brittleness (requires `--petri-run`)
 
 ## Interpreting Results
 

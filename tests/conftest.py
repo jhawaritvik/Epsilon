@@ -12,6 +12,37 @@ from typing import Dict, Any, Generator
 from unittest.mock import Mock, patch
 
 
+# =============================================================================
+# PETRI FUZZ TESTING HOOKS
+# =============================================================================
+
+def pytest_addoption(parser):
+    """Add command line options for Petri fuzz tests."""
+    parser.addoption(
+        "--petri-run",
+        action="store_true",
+        default=False,
+        help="Run Petri fuzz tests (requires API keys, incurs costs)"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip Petri tests unless --petri-run is specified."""
+    if config.getoption("--petri-run"):
+        return
+    
+    skip_petri = pytest.mark.skip(reason="needs --petri-run option to run")
+    for item in items:
+        # Check for actual @pytest.mark.petri marker, not just 'petri' keyword
+        # (keyword would match directory name tests/petri/)
+        if item.get_closest_marker("petri") is not None:
+            item.add_marker(skip_petri)
+
+
+# =============================================================================
+# FIXTURES
+# =============================================================================
+
 @pytest.fixture
 def temp_experiment_dir() -> Generator[Path, None, None]:
     """

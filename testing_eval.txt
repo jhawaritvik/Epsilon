@@ -1,0 +1,236 @@
+1. Define What “Correct” Means (First)
+
+Before tools, define invariants. These are non-negotiable truths.
+
+Hard invariants (must never break)
+
+Design authority separation
+
+Design Agent never writes code
+
+Execution Agent never changes hypotheses
+
+Evaluation Agent never executes training code
+
+Data modality consistency
+
+Tabular task → tabular dataset
+
+Vision task → image dataset
+
+No silent modality switching
+
+Artifact completeness
+Every run MUST produce:
+
+run_experiment.py
+
+raw_results.json
+
+dataset_used.json
+
+execution.log
+
+at least one .png plot
+
+FINAL_REPORT.md
+
+Memory correctness
+
+Failed runs must be queryable
+
+Crystallized knowledge must only come from robust verdicts
+
+No duplicate evidence insertion
+
+If any invariant breaks → pipeline failure, regardless of output quality.
+
+2. Golden Tests (Your Most Important Tests)
+
+These are fixed research goals with known expected behavior.
+
+Create a folder:
+
+tests/
+  golden/
+    test_l2_vs_pruning.yaml
+    test_depth_vs_width.yaml
+    test_label_noise.yaml
+
+
+Each test defines:
+
+goal: "Does L2 regularization reduce variance compared to capacity reduction?"
+expected:
+  data_modality: tabular
+  dataset_family: sklearn
+  execution_mode: validation
+  min_artifacts: 6
+  allowed_failure_types: []
+
+What you assert
+
+After run:
+
+Dataset choice matches expectation
+
+Execution mode matches
+
+No forbidden dataset used
+
+Final report exists
+
+Memory updated exactly once
+
+This is how compilers are tested. Your system is closer to a compiler than an app.
+
+3. Constraint Violation Tests (Adversarial)
+
+Deliberately try to break it.
+
+Examples
+3.1 Modality trap
+
+Goal:
+
+“Predict house prices using CIFAR-10 features”
+
+Expected:
+
+Design Agent rejects or corrects
+
+Execution never starts
+
+3.2 Ambiguous dataset
+
+Goal:
+
+“Study learning dynamics in early training”
+
+Expected:
+
+HALT with ambiguity
+
+No execution attempt
+
+3.3 Forbidden fallback
+
+Force dataset resolver to fail.
+
+Expected:
+
+Execution Agent halts
+
+No synthetic fallback
+
+Proper failure logged
+
+If it silently “does something reasonable”, that is a bug, not a feature.
+
+4. Determinism Tests (Critical)
+
+Run the same goal twice.
+
+Check:
+
+Same dataset
+
+Same model family
+
+Same statistical plan
+
+Same artifacts (structure)
+
+Minor numeric variance allowed, but not structural variance
+
+You should be able to hash:
+
+Experiment specification JSON
+
+Report structure
+
+If hashes differ → non-determinism leak.
+
+5. Memory Behavior Tests
+5.1 Duplicate suppression
+
+Run same paper twice.
+Expected:
+
+Evidence memory does not duplicate
+Knowledge memory not re-crystallized
+5.2 Failure learning
+Force a failure (dataset unavailable).
+Second run should:
+Query past failures
+Adjust design or halt earlier
+Log assertion:
+query_past_failures called BEFORE design
+6. Evaluation Agent Sanity Tests
+Feed known synthetic results.
+Example:
+Two identical distributions
+Expected:
+H0 not rejected
+No false “robust” classification
+This ensures your evaluation logic is not hallucinating significance.
+7. Execution Agent Stress Tests
+7.1 Missing dependency
+Force import error.
+Expected:
+install_package called
+Retry happens
+No infinite loop
+7.2 Long runtime guard
+Set max epochs too high.
+Expected:
+Timeout
+Clean failure
+Logged partial artifacts
+8. Report Generator Validation
+Your report generator is a research artifact.
+Check:
+Report renders with no broken links
+Embedded plots load
+JSON blocks are valid
+Narrative never contradicts raw_results.json
+You can auto-check this:
+Parse FINAL_REPORT.md
+Assert referenced files exist
+Compare reported metrics vs raw_results.json
+9. Metrics That Actually Matter
+Do NOT use accuracy or loss here.
+Use:
+Pipeline Metrics
+% runs that halt correctly on ambiguity
+% runs that violate invariants (target: 0)
+Mean retries per execution
+Mean tokens per run (budget control)
+Memory hit rate (reuse vs recompute)
+Research Metrics
+Reproducibility rate
+False discovery rate (robust verdicts later contradicted)
+Failure recovery success rate
+10. Tooling You Can Use (Optional, Not Required)
+
+Petri (from Anthropic): https://github.com/safety-research/petri.git
+https://www.anthropic.com/research/petri-open-source-auditing
+Excellent for:
+Agent boundary enforcement
+Tool call auditing
+Trace visualization
+Use it to verify:
+Which agent called what tool
+In what order
+With what authority
+Petri will NOT replace your tests, but it will prove compliance.
+
+11. The Litmus Test (Most Important)
+
+Ask yourself:
+
+If I handed this system to a PhD student, would I trust the conclusions without re-running everything manually?
+If the answer is “almost”:
+You are very close
+If the answer is “yes, with logs”:
+You have built something rare
