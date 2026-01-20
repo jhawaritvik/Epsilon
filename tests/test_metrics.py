@@ -1,255 +1,398 @@
 """
-Tests for metrics collection system.
+Tests for the event-driven metrics collection system.
+
+Tests cover:
+1. RunMetrics, IterationMetrics, AggregateMetrics dataclasses
+2. Event-driven metrics collection via EventBus
+3. Metric invariant assertions
+4. Report generation
 """
 
 import pytest
 from pathlib import Path
 from tests.metrics.pipeline_metrics import (
-    PipelineMetrics,
-    ResearchMetrics,
+    RunMetrics,
+    IterationMetrics,
+    AggregateMetrics,
     MetricsCollector,
+    FailureType,
+    assert_metric_invariants,
+    get_metrics_collector,
+)
+from tests.metrics.event_bus import (
+    get_event_bus,
+    emit_event,
+    Event,
+    RUN_STARTED, RUN_COMPLETED, RUN_FAILED,
+    ITERATION_STARTED, ITERATION_COMPLETED, ITERATION_FAILED,
+    ASSUMPTION_FAILED, CRYSTALLIZATION_ATTEMPTED,
+    MEMORY_QUERIED, MEMORY_HIT, EVIDENCE_ADDED,
+    AUTHORITY_VIOLATION, TOKENS_USED, AMBIGUITY_HALT,
 )
 
 
-@pytest.mark.metrics
-class TestPipelineMetrics:
-    """Tests for pipeline metrics calculations."""
-    
-    def test_success_rate_calculation(self):
-        """Test success rate calculation."""
-        metrics = PipelineMetrics(
-            total_runs=100,
-            successful_runs=85,
-            failed_runs=15
-        )
-        
-        assert metrics.success_rate == 85.0
-    
-    def test_invariant_violation_rate(self):
-        """Test invariant violation rate (should be 0%)."""
-        metrics = PipelineMetrics(
-            total_runs=50,
-            invariant_violations=0
-        )
-        
-        assert metrics.invariant_violation_rate == 0.0
-    
-    def test_invariant_violation_detected(self):
-        """Even one violation should show up."""
-        metrics = PipelineMetrics(
-            total_runs=100,
-            invariant_violations=2
-        )
-        
-        assert metrics.invariant_violation_rate == 2.0
-    
-    def test_memory_hit_rate(self):
-        """Test memory hit rate calculation."""
-        metrics = PipelineMetrics(
-            memory_queries=50,
-            memory_hits=40
-        )
-        
-        assert metrics.memory_hit_rate == 80.0
-    
-    def test_mean_tokens_per_run(self):
-        """Test average tokens calculation."""
-        metrics = PipelineMetrics(
-            total_runs=10,
-            total_tokens_used=50000
-        )
-        
-        assert metrics.mean_tokens_per_run == 5000.0
+@pytest.fixture(autouse=True)
+def reset_event_bus():
+    """Reset the event bus before and after each test."""
+    bus = get_event_bus()
+    bus.reset()
+    yield
+    bus.reset()
 
+
+# =============================================================================
+# Tests for RunMetrics
+# =============================================================================
 
 @pytest.mark.metrics
-class TestResearchMetrics:
-    """Tests for research quality metrics."""
+class TestRunMetrics:
+    """Tests for per-run metrics."""
     
-    def test_reproducibility_rate(self):
-        """Test reproducibility rate calculation."""
-        metrics = ResearchMetrics(
-            reproduction_attempts=20,
-            reproduced_findings=18
+    def test_run_metrics_creation(self):
+        """Test creating a RunMetrics instance."""
+        run = RunMetrics(run_id="test-run-001")
+        
+        assert run.run_id == "test-run-001"
+        assert run.iterations_to_success == 0
+        assert run.valid_run is False
+        assert run.total_tokens == 0
+    
+    def test_run_metrics_serialization(self):
+        """Test serialization to dict."""
+        run = RunMetrics(
+            run_id="test-run-001",
+            iterations_to_success=3,
+            valid_run=True,
+            final_verdict="robust"
         )
         
-        assert metrics.reproducibility_rate == 90.0
-    
-    def test_false_discovery_rate(self):
-        """Test FDR calculation (should be low)."""
-        metrics = ResearchMetrics(
-            robust_findings=100,
-            contradicted_findings=3
-        )
-        
-        assert metrics.false_discovery_rate == 3.0
-        assert metrics.false_discovery_rate < 5.0  # Target
-    
-    def test_high_fdr_is_problematic(self):
-        """High FDR should be flagged."""
-        metrics = ResearchMetrics(
-            robust_findings=50,
-            contradicted_findings=10  # 20% FDR!
-        )
-        
-        assert metrics.false_discovery_rate == 20.0
-        assert metrics.false_discovery_rate > 5.0  # Above target
-    
-    def test_failure_recovery_rate(self):
-        """Test failure recovery rate."""
-        metrics = ResearchMetrics(
-            failures=25,
-            recovered_failures=20
-        )
-        
-        assert metrics.failure_recovery_rate == 80.0
-    
-    def test_robust_finding_rate(self):
-        """Test percentage of findings that are robust."""
-        metrics = ResearchMetrics(
-            total_findings=100,
-            robust_findings=70,
-            spurious_findings=20,
-            promising_findings=10
-        )
-        
-        assert metrics.robust_finding_rate == 70.0
+        d = run.to_dict()
+        assert d["run_id"] == "test-run-001"
+        assert d["iterations_to_success"] == 3
+        assert d["valid_run"] is True
 
+
+# =============================================================================
+# Tests for IterationMetrics
+# =============================================================================
+
+@pytest.mark.metrics
+class TestIterationMetrics:
+    """Tests for per-iteration metrics."""
+    
+    def test_iteration_metrics_creation(self):
+        """Test creating an IterationMetrics instance."""
+        iteration = IterationMetrics(run_id="run-001", iteration_number=1)
+        
+        assert iteration.run_id == "run-001"
+        assert iteration.iteration_number == 1
+        assert iteration.success is False
+    
+    def test_iteration_with_failure(self):
+        """Test iteration with failure type."""
+        iteration = IterationMetrics(
+            run_id="run-001",
+            iteration_number=2,
+            failure_type=FailureType.DATA
+        )
+        
+        d = iteration.to_dict()
+        assert d["failure_type"] == "DATA"
+
+
+# =============================================================================
+# Tests for AggregateMetrics
+# =============================================================================
+
+@pytest.mark.metrics
+class TestAggregateMetrics:
+    """Tests for aggregate metrics calculations."""
+    
+    def test_valid_run_rate(self):
+        """Test valid run rate calculation."""
+        agg = AggregateMetrics(total_runs=100, valid_runs=85)
+        assert agg.valid_run_rate == 85.0
+    
+    def test_false_crystallization_rate_zero(self):
+        """False crystallization rate should be 0 for valid systems."""
+        agg = AggregateMetrics(
+            total_crystallizations=50,
+            false_crystallizations=0
+        )
+        assert agg.false_crystallization_rate == 0.0
+    
+    def test_false_crystallization_rate_nonzero(self):
+        """Detect non-zero false crystallization rate."""
+        agg = AggregateMetrics(
+            total_crystallizations=50,
+            false_crystallizations=2
+        )
+        assert agg.false_crystallization_rate == 4.0
+    
+    def test_mean_iterations_to_success(self):
+        """Test mean iterations calculation."""
+        agg = AggregateMetrics(
+            iterations_to_success_list=[2, 3, 3, 4, 3]
+        )
+        assert agg.mean_iterations_to_success == 3.0
+    
+    def test_median_iterations_to_success(self):
+        """Test median iterations calculation."""
+        agg = AggregateMetrics(
+            iterations_to_success_list=[1, 2, 3, 4, 5]
+        )
+        assert agg.median_iterations_to_success == 3.0
+    
+    def test_evidence_reuse_rate(self):
+        """Test memory hit rate."""
+        agg = AggregateMetrics(
+            total_memory_queries=100,
+            memory_hits=30
+        )
+        assert agg.evidence_reuse_rate == 30.0
+    
+    def test_authority_violation_rate_zero(self):
+        """Authority violation rate must be 0."""
+        agg = AggregateMetrics(
+            total_runs=100,
+            total_authority_violations=0
+        )
+        assert agg.authority_violation_rate == 0.0
+    
+    def test_tokens_per_valid_experiment(self):
+        """Test cost efficiency calculation."""
+        agg = AggregateMetrics(
+            valid_runs=10,
+            tokens_for_valid_experiments=50000
+        )
+        assert agg.tokens_per_valid_experiment == 5000.0
+
+
+# =============================================================================
+# Tests for Event-Driven MetricsCollector
+# =============================================================================
 
 @pytest.mark.metrics
 class TestMetricsCollector:
-    """Tests for metrics collector."""
+    """Tests for event-driven metrics collection."""
     
-    def test_record_successful_run(self, temp_experiment_dir):
-        """Test recording a successful run."""
+    def test_run_lifecycle_via_events(self, temp_experiment_dir):
+        """Test recording a full run lifecycle via events."""
         collector = MetricsCollector(temp_experiment_dir / "metrics.json")
         
-        collector.record_run(
-            run_id="run_001",
-            status="success",
-            retries=1,
-            tokens_used=5000,
-            invariant_violations=0
-        )
+        emit_event(RUN_STARTED, {"run_id": "test-run-001"})
+        emit_event(ITERATION_STARTED, {"iteration": 1})
+        emit_event(TOKENS_USED, {"count": 1000, "agent": "DesignAgent"})
+        emit_event(ITERATION_COMPLETED, {})
+        emit_event(RUN_COMPLETED, {"valid": True, "verdict": "robust"})
         
-        assert collector.pipeline_metrics.total_runs == 1
-        assert collector.pipeline_metrics.successful_runs == 1
-        assert collector.pipeline_metrics.mean_tokens_per_run == 5000.0
+        assert collector.aggregate.total_runs == 1
+        assert collector.aggregate.valid_runs == 1
+        assert collector.aggregate.total_tokens == 1000
+        assert collector.aggregate.tokens_by_agent["DesignAgent"] == 1000
     
-    def test_record_failed_run(self, temp_experiment_dir):
-        """Test recording a failed run."""
+    def test_failed_run_tracking(self, temp_experiment_dir):
+        """Test tracking failed runs."""
         collector = MetricsCollector(temp_experiment_dir / "metrics.json")
         
-        collector.record_run(
-            run_id="run_002",
-            status="failed",
-            retries=3,
-            tokens_used=8000
-        )
+        emit_event(RUN_STARTED, {"run_id": "fail-run"})
+        emit_event(RUN_FAILED, {"failure_type": "EXECUTION"})
         
-        assert collector.pipeline_metrics.failed_runs == 1
-        assert collector.pipeline_metrics.mean_retries_per_run == 3.0
+        assert collector.aggregate.total_runs == 1
+        assert collector.aggregate.valid_runs == 0
+        assert collector.aggregate.failure_type_distribution["EXECUTION"] == 1
     
-    def test_record_ambiguity_halt(self, temp_experiment_dir):
-        """Test recording ambiguity halt."""
+    def test_authority_violation_tracking(self, temp_experiment_dir):
+        """Test tracking authority violations."""
         collector = MetricsCollector(temp_experiment_dir / "metrics.json")
         
-        collector.record_run(
-            run_id="run_003",
-            status="ambiguous",
-            halted_on_ambiguity=True
-        )
+        emit_event(RUN_STARTED, {"run_id": "violation-run"})
+        emit_event(AUTHORITY_VIOLATION, {"agent": "DesignAgent", "action": "wrote_code"})
+        emit_event(RUN_COMPLETED, {"valid": False})
         
-        assert collector.pipeline_metrics.ambiguity_halts == 1
+        assert collector.aggregate.total_authority_violations == 1
     
-    def test_record_memory_queries(self, temp_experiment_dir):
-        """Test recording memory queries."""
+    def test_memory_hit_tracking(self, temp_experiment_dir):
+        """Test tracking memory queries and hits."""
         collector = MetricsCollector(temp_experiment_dir / "metrics.json")
         
-        collector.record_memory_query(found_useful_info=True)
-        collector.record_memory_query(found_useful_info=True)
-        collector.record_memory_query(found_useful_info=False)
+        emit_event(RUN_STARTED, {"run_id": "memory-run"})
+        emit_event(ITERATION_STARTED, {"iteration": 1})
+        emit_event(MEMORY_QUERIED, {})
+        emit_event(MEMORY_HIT, {})
+        emit_event(MEMORY_QUERIED, {})
+        emit_event(ITERATION_COMPLETED, {})
+        emit_event(RUN_COMPLETED, {"valid": True})
         
-        assert collector.pipeline_metrics.memory_queries == 3
-        assert collector.pipeline_metrics.memory_hits == 2
-        assert collector.pipeline_metrics.memory_hit_rate == pytest.approx(66.67, rel=0.1)
+        assert collector.aggregate.total_memory_queries == 2
+        assert collector.aggregate.memory_hits == 1
+        assert collector.aggregate.evidence_reuse_rate == 50.0
     
-    def test_record_findings(self, temp_experiment_dir):
-        """Test recording research findings."""
+    def test_assumption_failure_tracking(self, temp_experiment_dir):
+        """Test tracking assumption failures."""
         collector = MetricsCollector(temp_experiment_dir / "metrics.json")
         
-        collector.record_finding("robust")
-        collector.record_finding("robust")
-        collector.record_finding("spurious")
-        collector.record_finding("promising")
+        emit_event(RUN_STARTED, {"run_id": "assumption-run"})
+        emit_event(ASSUMPTION_FAILED, {"type": "normality", "p_value": 0.001})
+        emit_event(RUN_COMPLETED, {"valid": True})
         
-        assert collector.research_metrics.total_findings == 4
-        assert collector.research_metrics.robust_findings == 2
-        assert collector.research_metrics.spurious_findings == 1
+        assert collector.aggregate.assumption_failure_count == 1
     
-    def test_save_and_load(self, temp_experiment_dir):
-        """Test saving and loading metrics."""
-        storage_path = temp_experiment_dir / "metrics.json"
+    def test_crystallization_tracking(self, temp_experiment_dir):
+        """Test tracking crystallization attempts."""
+        collector = MetricsCollector(temp_experiment_dir / "metrics.json")
         
-        # Create and populate collector
-        collector1 = MetricsCollector(storage_path)
-        collector1.record_run("run_001", "success", tokens_used=1000)
-        collector1.record_finding("robust")
-        collector1.save()
+        emit_event(RUN_STARTED, {"run_id": "crystal-run"})
+        emit_event(CRYSTALLIZATION_ATTEMPTED, {"valid": True})
+        emit_event(RUN_COMPLETED, {"valid": True})
         
-        # Load into new collector
-        collector2 = MetricsCollector(storage_path)
-        collector2.load()
+        # Valid crystallization
+        assert collector.aggregate.total_crystallizations == 1
+        assert collector.aggregate.false_crystallizations == 0
         
-        # Should have same data
-        assert collector2.pipeline_metrics.total_runs == 1
-        assert collector2.research_metrics.robust_findings == 1
+        # False crystallization
+        emit_event(RUN_STARTED, {"run_id": "false-crystal-run"})
+        emit_event(CRYSTALLIZATION_ATTEMPTED, {"valid": False})
+        emit_event(RUN_COMPLETED, {"valid": False})
+        
+        assert collector.aggregate.total_crystallizations == 2
+        assert collector.aggregate.false_crystallizations == 1
     
-    def test_generate_report(self, temp_experiment_dir):
+    def test_ambiguity_halt_tracking(self, temp_experiment_dir):
+        """Test tracking ambiguity halts."""
+        collector = MetricsCollector(temp_experiment_dir / "metrics.json")
+        
+        emit_event(RUN_STARTED, {"run_id": "ambig-run"})
+        emit_event(AMBIGUITY_HALT, {})
+        emit_event(RUN_COMPLETED, {"valid": True})
+        
+        assert collector.aggregate.ambiguity_halts == 1
+    
+    def test_repeated_failure_detection(self, temp_experiment_dir):
+        """Test detection of repeated failures (same type twice)."""
+        collector = MetricsCollector(temp_experiment_dir / "metrics.json")
+        
+        emit_event(RUN_STARTED, {"run_id": "repeat-run"})
+        emit_event(ITERATION_STARTED, {"iteration": 1})
+        emit_event(ITERATION_FAILED, {"failure_type": "DATA"})
+        emit_event(ITERATION_STARTED, {"iteration": 2})
+        emit_event(ITERATION_FAILED, {"failure_type": "DATA"})  # Repeated!
+        emit_event(RUN_FAILED, {"failure_type": "DATA"})
+        
+        assert collector.aggregate.repeated_failures == 1
+    
+    def test_report_generation(self, temp_experiment_dir):
         """Test report generation."""
         collector = MetricsCollector(temp_experiment_dir / "metrics.json")
         
-        # Add some data
-        for i in range(10):
-            collector.record_run(f"run_{i}", "success", tokens_used=5000)
-        
+        # Add some data using legacy API
+        collector.record_run("report-run", "success", tokens_used=5000)
         collector.record_finding("robust")
-        collector.record_finding("robust")
-        collector.record_finding("spurious")
         
         report = collector.generate_report()
         
-        # Report should contain key sections
+        # Check for legacy format sections
         assert "Pipeline Health" in report
         assert "Research Quality" in report
-        assert "Success Rate" in report
+        assert "Success Metrics" in report
         assert "Invariant Violation Rate" in report
+    
+    def test_save_metrics(self, temp_experiment_dir):
+        """Test saving metrics to file."""
+        storage_path = temp_experiment_dir / "metrics.json"
+        collector = MetricsCollector(storage_path)
+        
+        emit_event(RUN_STARTED, {"run_id": "save-run"})
+        emit_event(RUN_COMPLETED, {"valid": True})
+        
+        collector.save()
+        
+        assert storage_path.exists()
 
+
+# =============================================================================
+# Tests for Metric Invariants
+# =============================================================================
+
+@pytest.mark.metrics
+class TestMetricInvariants:
+    """Tests for metric invariant assertions."""
+    
+    def test_clean_metrics_pass_invariants(self):
+        """Clean metrics should pass all invariants."""
+        agg = AggregateMetrics(
+            total_runs=10,
+            valid_runs=8,
+            false_crystallizations=0,
+            total_crystallizations=5,
+            total_authority_violations=0,
+            repeated_failures=1,
+            duplicate_evidence=0,
+            evidence_added=10
+        )
+        
+        # Should not raise
+        assert_metric_invariants(agg)
+    
+    def test_false_crystallization_fails_invariant(self):
+        """Non-zero false crystallization should fail."""
+        agg = AggregateMetrics(
+            total_runs=10,
+            false_crystallizations=1,
+            total_crystallizations=5
+        )
+        
+        with pytest.raises(AssertionError, match="crystallization"):
+            assert_metric_invariants(agg)
+    
+    def test_authority_violation_fails_invariant(self):
+        """Any authority violation should fail."""
+        agg = AggregateMetrics(
+            total_runs=10,
+            total_authority_violations=1
+        )
+        
+        with pytest.raises(AssertionError, match="Authority"):
+            assert_metric_invariants(agg)
+    
+    def test_high_repeat_failure_rate_fails(self):
+        """High repeat failure rate should fail."""
+        agg = AggregateMetrics(
+            total_runs=10,
+            repeated_failures=5  # 50% rate!
+        )
+        
+        with pytest.raises(AssertionError, match="Repeat failure"):
+            assert_metric_invariants(agg)
+
+
+# =============================================================================
+# Tests for Metric Targets
+# =============================================================================
 
 @pytest.mark.metrics
 def test_metrics_targets():
     """
     Test that we have defined targets for key metrics.
     
-    Targets:
-    - Invariant violation rate: 0%
-    - False discovery rate: <5%
-    - Reproducibility rate: >80%
-    - Failure recovery rate: >60%
+    Paper-grade targets:
+    - False crystallization rate: 0%
+    - Authority violation rate: 0%
+    - Repeat failure rate: <20%
+    - Duplicate evidence rate: <5%
     """
     targets = {
-        "invariant_violation_rate": 0.0,
-        "false_discovery_rate_max": 5.0,
-        "reproducibility_rate_min": 80.0,
-        "failure_recovery_rate_min": 60.0,
+        "false_crystallization_rate": 0.0,
+        "authority_violation_rate": 0.0,
+        "repeat_failure_rate_max": 20.0,
+        "duplicate_evidence_rate_max": 5.0,
     }
     
-    # Verify targets are reasonable
-    assert targets["invariant_violation_rate"] == 0.0, \
-        "Invariant violations should never be acceptable"
+    assert targets["false_crystallization_rate"] == 0.0, \
+        "False crystallization must be zero"
     
-    assert targets["false_discovery_rate_max"] < 10.0, \
-        "FDR target should be strict"
+    assert targets["authority_violation_rate"] == 0.0, \
+        "No authority violations allowed"
     
-    assert targets["reproducibility_rate_min"] > 50.0, \
-        "Reproducibility should be majority"
+    assert targets["repeat_failure_rate_max"] <= 20.0, \
+        "Repeat failure rate should be low"
