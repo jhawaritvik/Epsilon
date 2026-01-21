@@ -1,0 +1,26 @@
+{
+  "suite_name": "internal",
+  "timestamp": "20260121_074334",
+  "total_tasks": 1,
+  "successful_tasks": 0,
+  "failed_tasks": 1,
+  "success_rate": 0.0,
+  "avg_execution_time": 145.76303696632385,
+  "total_time": 145.76355457305908,
+  "task_results": [
+    {
+      "task_id": "internal_001",
+      "task_name": "Basic Hypothesis Testing",
+      "suite": "internal",
+      "success": false,
+      "execution_time_seconds": 145.76303696632385,
+      "improvement_percentage": null,
+      "error_message": null,
+      "metrics": {
+        "has_results": false,
+        "has_report": false,
+        "expected_outcome": "p-value < 0.05, reject null hypothesis"
+      }
+    }
+  ]
+}
