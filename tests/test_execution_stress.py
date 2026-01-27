@@ -175,7 +175,7 @@ for i in range(10000):
 [INFO] Partial results saved to: experiments/run_123/
 """
         
-        assert "Timeout" in timeout_log
+        assert "timeout" in timeout_log.lower()
         assert "300 seconds" in timeout_log
         assert "Suggestion" in timeout_log
 

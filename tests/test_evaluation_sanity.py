@@ -65,7 +65,7 @@ class TestEvaluationAgentSanity:
         
         This is the most basic sanity check.
         """
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         data_a, data_b = generate_identical_distributions()
         
@@ -92,7 +92,7 @@ class TestEvaluationAgentSanity:
         """
         Feeding clearly different distributions SHOULD reject H0.
         """
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         data_a, data_b = generate_different_distributions()
         
@@ -123,7 +123,7 @@ class TestEvaluationAgentSanity:
         - No RuntimeWarning
         - Clear "No Significant Difference" or "Cannot compute" message
         """
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         data_a = generate_zero_variance_data()
         data_b = generate_zero_variance_data()
@@ -153,7 +153,7 @@ class TestEvaluationAgentSanity:
         data_a = np.random.normal(0.5, 0.1, 30).tolist()
         data_b = np.random.normal(0.3, 0.1, 30).tolist()  # Clear difference
         
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         result = run_statistical_test(
             test_name="t-test_ind",
@@ -182,7 +182,7 @@ class TestEvaluationAgentSanity:
         data_a = np.random.normal(0.50, 0.15, 25).tolist()
         data_b = np.random.normal(0.48, 0.15, 25).tolist()
         
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         result = run_statistical_test(
             test_name="t-test_ind",
@@ -213,14 +213,14 @@ class TestEvaluationAgentSanity:
         data_a = np.random.exponential(2.0, 30).tolist()
         data_b = np.random.exponential(2.5, 30).tolist()
         
-        from evaluation_agent import verify_assumptions
+        from evaluation_agent import _verify_assumptions_impl as verify_assumptions
         
         # Check normality
         normality_check_a = verify_assumptions("normality", data_a)
         normality_result_a = eval(normality_check_a)
         
         # Exponential data should fail normality
-        assert normality_result_a["status"] == "fail", \
+        assert normality_result_a["status"] == "FAIL", \
             "Exponential data should fail normality test"
         
         # System should then use fallback (Mann-Whitney)
@@ -236,7 +236,7 @@ class TestStatisticalTestImplementations:
     
     def test_t_test_independent(self):
         """Test independent samples t-test."""
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         data_a = [1, 2, 3, 4, 5]
         data_b = [6, 7, 8, 9, 10]
@@ -256,7 +256,7 @@ class TestStatisticalTestImplementations:
     
     def test_t_test_paired(self):
         """Test paired samples t-test."""
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         data_a = [1, 2, 3, 4, 5]
         data_b = [1.1, 2.2, 3.1, 4.3, 5.2]
@@ -275,7 +275,7 @@ class TestStatisticalTestImplementations:
     
     def test_mann_whitney_u(self):
         """Test Mann-Whitney U test (non-parametric)."""
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         data_a = [1, 2, 3, 4, 5]
         data_b = [6, 7, 8, 9, 10]
@@ -294,7 +294,7 @@ class TestStatisticalTestImplementations:
     
     def test_wilcoxon_signed_rank(self):
         """Test Wilcoxon signed-rank test."""
-        from evaluation_agent import run_statistical_test
+        from evaluation_agent import _run_statistical_test_impl as run_statistical_test
         
         data_a = [1, 2, 3, 4, 5]
         data_b = [1.1, 2.2, 3.1, 4.3, 5.2]
@@ -316,7 +316,7 @@ class TestStatisticalTestImplementations:
 @pytest.mark.evaluation
 def test_shapiro_wilk_normality():
     """Test Shapiro-Wilk normality test."""
-    from evaluation_agent import verify_assumptions
+    from evaluation_agent import _verify_assumptions_impl as verify_assumptions
     
     # Normal data
     np.random.seed(42)
@@ -326,7 +326,7 @@ def test_shapiro_wilk_normality():
     result_dict = eval(result)
     
     assert "status" in result_dict
-    assert result_dict["status"] in ["pass", "fail"]
+    assert result_dict["status"] in ["PASS", "FAIL"]
     
     # Should likely pass for truly normal data
     # (though with small sample size, might occasionally fail)

@@ -59,7 +59,7 @@ def extract_metrics_from_narrative(markdown_text: str) -> Dict[str, List[float]]
     Example: "mean loss of 0.456" → {"mean_loss": [0.456]}
     """
     # Simple pattern for numbers in text
-    pattern = r'(\w+[\s_]\w+)[\s:]+(\d+\.\d+|\d+)'
+    pattern = r'(\w+[\s_]\w+)(?:[\s:]+|[\s]+of[\s]+)(\d+\.\d+|\d+)'
     matches = re.findall(pattern, markdown_text.lower())
     
     metrics = {}

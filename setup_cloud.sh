@@ -96,12 +96,14 @@ if [ ! -f ".env" ]; then
     echo ""
     
     read -p "  OpenAI API Key (sk-...): " OPENAI_KEY
+    read -p "  Tavily API Key (tvly-...): " TAVILY_KEY
     read -p "  Supabase URL (https://xxx.supabase.co): " SUPABASE_URL
     read -p "  Supabase Key (anon key): " SUPABASE_KEY
     
     # Write to .env file
     cat > .env << EOF
 OPENAI_API_KEY=${OPENAI_KEY}
+TAVILY_API_KEY=${TAVILY_KEY}
 SUPABASE_URL=${SUPABASE_URL}
 SUPABASE_KEY=${SUPABASE_KEY}
 EOF

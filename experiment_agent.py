@@ -173,6 +173,12 @@ Required Output Schema:
     "assumptions": [],
     "fallback_test": ""
   },
+  "success_spec": {
+    "metric": "The primary metric to evaluate (e.g., 'accuracy', 'R2', 'RMSE', 'loss')",
+    "direction": "higher | lower",
+    "threshold": "Numeric value. Success requires metric to exceed (or be under) this value in the specified direction",
+    "required_assumptions": ["List of statistical assumptions that must pass before declaring success"]
+  },
   "power_analysis_plan": {
     "method": "",
     "effect_size_range": [],

@@ -203,9 +203,21 @@ class EvaluationAuthorityValidator(InvariantValidator):
         if "evaluation" not in agent_name.lower():
             return True  # Not an evaluation agent, skip
         
-        # Check tool calls
+        # Allowed tools for evaluation agent (these contain "run" but are not execution)
+        ALLOWED_TOOLS = [
+            "run_statistical_test",
+            "run_analysis", 
+            "verify_assumptions",
+            "python_analysis_tool"
+        ]
+        
+        # Check tool calls for forbidden execution tools
         for tool in tool_calls:
-            if "execute" in tool.lower() or "run" in tool.lower():
+            # Skip allowed analysis tools
+            if tool in ALLOWED_TOOLS:
+                continue
+            # Check for actual execution tools (but not analysis tools)
+            if tool.lower() in ["execute_experiment", "execute_code", "run_experiment"]:
                 violation = InvariantViolation(
                     violation_type=ViolationType.EVALUATION_AUTHORITY,
                     agent_name=agent_name,

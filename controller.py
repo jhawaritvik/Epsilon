@@ -36,10 +36,21 @@ class ResearchController:
         self.event_callback = event_callback
         
         # Identity & Memory Service
-        # self.run_id = uuid.uuid4() # Moved to run() method
-        # logger.info(f"Initialized Run ID: {self.run_id}") # Moved to run() method
-        
         self.memory_service = MemoryService()
+        
+        # Resource Tracking (for audit appendix, NOT scientific conclusions)
+        self.run_metrics = {
+            "start_time": None,
+            "end_time": None,
+            "phase_times": {
+                "research": 0.0,
+                "design": 0.0,
+                "execute": 0.0,
+                "evaluate": 0.0
+            },
+            "iterations_completed": 0,
+            "final_failure_type": None  # Explicit failure mode if failed
+        }
     
     def emit(self, event_type: str, data: Optional[Dict[str, Any]] = None):
         """Emit an event if callback is registered."""
@@ -56,6 +67,9 @@ class ResearchController:
         self.run_id = uuid.uuid4()
         ExecutionIdentity.set_identity(self.user_id)
         
+        # [METRICS] Start tracking
+        self.run_metrics["start_time"] = time.time()
+        
         logger.info(f"Starting Research Process for Goal: {research_goal}")
         logger.info(f"Initialized Run ID: {self.run_id}")
         
@@ -64,7 +78,6 @@ class ResearchController:
         
         # Inject Run ID globally (Transient) - Identity is handled by ExecutionIdentity
         os.environ["CURRENT_RUN_ID"] = str(self.run_id)
-        # os.environ["CURRENT_USER_ID"] = self.user_id # REMOVED: Unsafe. Use ExecutionIdentity.
 
         
         try:
@@ -83,6 +96,11 @@ class ResearchController:
             self.emit("run_error", {"error": str(e)})
             
         finally:
+            # [METRICS] Finalize and save
+            self.run_metrics["end_time"] = time.time()
+            self.run_metrics["iterations_completed"] = self.current_iteration
+            self._save_run_metrics()
+            
             # Global cleanup of environment variables for this run
             if "CURRENT_RUN_ID" in os.environ:
                 del os.environ["CURRENT_RUN_ID"] 
@@ -93,6 +111,26 @@ class ResearchController:
         """Returns the isolated directory for this run."""
         base = os.path.join(os.path.dirname(__file__), "experiments")
         return os.path.join(base, str(self.run_id))
+
+    def _save_run_metrics(self):
+        """Saves run metrics to JSON file for audit appendix."""
+        exp_dir = self._get_experiment_dir()
+        if not os.path.exists(exp_dir):
+            os.makedirs(exp_dir, exist_ok=True)
+        
+        # Calculate total run time
+        if self.run_metrics["start_time"] and self.run_metrics["end_time"]:
+            self.run_metrics["total_time_seconds"] = round(
+                self.run_metrics["end_time"] - self.run_metrics["start_time"], 2
+            )
+        
+        metrics_path = os.path.join(exp_dir, "run_metrics.json")
+        try:
+            with open(metrics_path, "w") as f:
+                json.dump(self.run_metrics, f, indent=2)
+            logger.info(f"Run metrics saved to {metrics_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save run metrics: {e}")
 
     def _cleanup_artifacts(self):
         """Removes previous experiment artifacts to enforce strict contract checking."""

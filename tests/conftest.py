@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Generator
 from unittest.mock import Mock, patch
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to avoid Tcl/Tk errors
 
 
 # =============================================================================
@@ -84,11 +86,19 @@ def mock_supabase_client():
     """
     Mocks the Supabase client to avoid external dependencies in tests.
     """
-    with patch('memory.supabase_client.get_supabase_client') as mock:
+    with patch('memory.supabase_client.SupabaseManager') as MockManager:
+        mock_instance = Mock()
         mock_client = Mock()
         mock_client.table.return_value.insert.return_value.execute.return_value = Mock()
         mock_client.table.return_value.select.return_value.execute.return_value = Mock(data=[])
-        mock.return_value = mock_client
+        
+        # Configure manager instance to return mock client
+        mock_instance.client = mock_client
+        mock_instance.is_enabled = True
+        
+        # Configure MockManager constructor to return the instance
+        MockManager.return_value = mock_instance
+        
         yield mock_client
 
 

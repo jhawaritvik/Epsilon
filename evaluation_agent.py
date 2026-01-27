@@ -19,9 +19,11 @@ logger = logging.getLogger(__name__)
 # TOOLS: Statistical Execution
 # ============================================================
 
-@function_tool
-def run_statistical_test(test_name: str, data_a: list[float], data_b: list[float] = None, alpha: float = 0.05, alternative: str = "two-sided") -> str:
+def _run_statistical_test_impl(test_name: str, data_a: list[float], data_b: list[float] = None, alpha: float = 0.05, alternative: str = "two-sided") -> str:
     """
+    Raw implementation of statistical test execution.
+    This function is directly callable for testing purposes.
+    
     Executes a specific statistical test on the provided data.
     Supported tests: 't-test_ind', 't-test_rel', 'mannwhitneyu', 'wilcoxon', 'shapiro'.
     Args:
@@ -93,9 +95,25 @@ def run_statistical_test(test_name: str, data_a: list[float], data_b: list[float
     except Exception as e:
         return json.dumps({"error": str(e)})
 
+# Wrap for agent use
 @function_tool
-def verify_assumptions(check_type: str, data: list[float]) -> str:
+def run_statistical_test(test_name: str, data_a: list[float], data_b: list[float] = None, alpha: float = 0.05, alternative: str = "two-sided") -> str:
     """
+    Executes a specific statistical test on the provided data.
+    Supported tests: 't-test_ind', 't-test_rel', 'mannwhitneyu', 'wilcoxon', 'shapiro'.
+    Args:
+        alternative: 'two-sided', 'less', 'greater'. 
+                     For 'less', H1 is mean(a) < mean(b) [typical for loss].
+                     For 'greater', H1 is mean(a) > mean(b) [typical for accuracy].
+    Returns JSON with statistic, p-value, and decision (Reject H0 / Fail to Reject H0).
+    """
+    return _run_statistical_test_impl(test_name, data_a, data_b, alpha, alternative)
+
+def _verify_assumptions_impl(check_type: str, data: list[float]) -> str:
+    """
+    Raw implementation of assumption verification.
+    This function is directly callable for testing purposes.
+    
     Verifies statistical assumptions.
     Supported checks: 'normality' (Shapiro-Wilk).
     Returns JSON with pass/fail status.
@@ -115,6 +133,16 @@ def verify_assumptions(check_type: str, data: list[float]) -> str:
         }, indent=2)
         
     return json.dumps({"error": f"Unsupported check: {check_type}"})
+
+# Wrap for agent use
+@function_tool
+def verify_assumptions(check_type: str, data: list[float]) -> str:
+    """
+    Verifies statistical assumptions.
+    Supported checks: 'normality' (Shapiro-Wilk).
+    Returns JSON with pass/fail status.
+    """
+    return _verify_assumptions_impl(check_type, data)
 
 @function_tool
 def python_analysis_tool(code: str) -> str:
@@ -181,29 +209,66 @@ You are the **Evaluation / Analysis Agent**.
 Your role is to act as a **Statistical Executor** and **Scientific Validator**.
 You strictly execute the analysis protocol defined by the Design Agent.
 
+**CRITICAL: Domain-Agnostic Evaluation**
+You do NOT decide what metric is meaningful or what constitutes success.
+You consume the `success_spec` from the Design Agent BLINDLY and validate against it.
+
 **Responsibilities**:
 1.  **Analyze Data via Code**: 
     - You will receive a **filepath** to the data (e.g., `experiments/raw_results.json`).
     - **DO NOT** ask to see the raw data in chat.
     - **USE `python_analysis_tool`** to write and execute Python code to load and analyze this file.
     - Calculate statistics (means, p-values, normality checks) using libraries like `scipy.stats` and `pandas`.
-2.  **Verify Assumptions**: 
+
+2.  **Consume success_spec (BLINDLY)**:
+    The Design Agent provides a `success_spec` object. You MUST use it as-is:
+    ```
+    "success_spec": {
+      "metric": "accuracy",      # What to measure - DO NOT QUESTION THIS
+      "direction": "higher",     # higher = success if metric > threshold
+      "threshold": 0.7,          # The bar to clear
+      "required_assumptions": ["normality"]  # Must pass before declaring success
+    }
+    ```
+    - Validate each assumption in `required_assumptions`
+    - Compare the metric value against `threshold` using `direction`
+    - You do NOT decide if "accuracy" is the right metric - Design Agent decided that
+
+3.  **Verify Assumptions**: 
     - Use your Python tool to perform checks (e.g., Shapiro-Wilk) on the data file.
     - **Gating Logic**:
-      - IF any assumption FAILS: You MUST NOT run the `primary_test`. Instead, run the `fallback_test`.
-3.  **Judge Results**: Compare p-values to $\alpha$ and declare `Reject H0` / `Fail to reject H0`.
-4.  **Classify Outcome**: 
-    - Use the `classification_rules` from the protocol to label results (e.g., `robust`, `spurious`, `promising`).
-    - **Issue Type**:
-      - `design`: If H0 is not rejected or assumptions fail.
-      - `data`: If results indicate insufficient data size or quality.
-      - `execution`: If results look anomalous/corrupted.
-      - `none`: If outcome is `robust` (success).
+      - IF any assumption in `required_assumptions` FAILS: Use `fallback_test`, set issue_type to `assumption_violation`
+
+4.  **Judge Results Using success_spec**:
+    - If `direction` is "higher": success requires metric >= threshold
+    - If `direction` is "lower": success requires metric <= threshold
+    - Compare p-values to alpha and declare `Reject H0` / `Fail to reject H0`.
+
+5.  **Classify Outcome with Specific Failure Types**:
+    - `robust`: All assumptions pass AND threshold met AND H0 rejected
+    - `promising`: Threshold met but assumptions or significance unclear
+    - `spurious`: H0 rejected but assumptions fail
+    - `failed`: Threshold NOT met or intervention worse than baseline
+    
+    **Specific Issue Types** (be precise):
+    - `design`: Flawed hypothesis, H0 not rejected, intervention worse than baseline
+    - `data_insufficiency`: Not enough samples for statistical power
+    - `assumption_violation`: Required assumptions failed
+    - `non_convergence`: Model/optimization did not converge
+    - `execution`: Code errors, anomalous results
+    - `none`: Success (outcome is `robust`)
 
 **Inputs provided to you**:
-- `experiment_specification` (JSON): Contains Research Question, $H_0$, $H_1$.
-- `analysis_protocol` (JSON): The authoritative guide.
-- `data_path` (str): Path to the results file (e.g., "experiments/raw_results.json").
+- `experiment_specification` (JSON): Contains Research Question, H0, H1
+- `analysis_protocol` (JSON): Contains primary_test, alpha, fallback_test
+- `success_spec` (JSON): The authoritative success criteria from Design Agent
+- `data_path` (str): Path to the results file
+
+**CRITICAL VALIDATION STEP**:
+Before classifying as success, you MUST verify:
+1. All `required_assumptions` from success_spec PASS
+2. The metric value meets the `threshold` in the specified `direction`
+3. Include explicit comparison in your rationale
 
 **Required Output Schema**:
 ```json
@@ -223,11 +288,24 @@ You strictly execute the analysis protocol defined by the Design Agent.
       "status": "PASS | FAIL"
     }
   ],
+  "success_spec_evaluation": {
+    "metric_name": "string",
+    "metric_value": float,
+    "threshold": float,
+    "direction": "higher | lower",
+    "threshold_met": boolean
+  },
+  "metric_comparison": {
+    "baseline_mean": float,
+    "intervention_mean": float,
+    "improvement_achieved": boolean,
+    "improvement_pct": float
+  },
   "verdict": {
     "hypothesis_decision": "Reject H0 | Fail to reject H0",
     "outcome_classification": "robust | promising | spurious | failed",
-    "issue_type": "design | execution | data | none",
-    "rationale": "string"
+    "issue_type": "design | data_insufficiency | assumption_violation | non_convergence | execution | none",
+    "rationale": "string - MUST include comparison against success_spec threshold"
   }
 }
 ```
