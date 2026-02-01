@@ -26,7 +26,7 @@ echo -e "${NC}"
 
 # Configuration
 REPO_URL="https://github.com/jhawaritvik/Epsilon.git"
-BRANCH="main"
+BRANCH="testing-pipeline-evaluation"
 INSTALL_DIR="${HOME}/Epsilon"
 
 # -----------------------------------------------------------------------------
