@@ -398,6 +398,11 @@ Implement and execute this experiment.
 Context/History: {history_summary}
 Adaptive Hint: {adaptive_hint}
 dataset_hint: {experiment_spec.get("experiment_specification", {}).get("dataset_requirements", {}).get("dataset_hint", "")}
+
+CRITICAL: Your code MUST save the final results to 'raw_results.json'.
+For classification tasks, successful execution MUST output a key 'final_accuracy' or 'accuracy'.
+For regression/improvement tasks, successful execution MUST output keys like 'rmse', 'rmse_ratio_mean' (improved/baseline), or 'mean_percent_mae_reduction'.
+Ensure the JSON structure is flat or well-documented so it can be parsed easily.
 """
             # Inject dataset hint if present in the spec (passed from Design Agent or separate)
             # Actually dataset_hint is usually in task definition -> Design Agent -> spec. 
