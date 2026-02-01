@@ -201,12 +201,13 @@ If "Feedback from Previous Iteration" is present, you MUST address it in "revisi
 If the feedback contains "REFINEMENT MODE" or "REFINEMENT REQUIRED", you are operating in refinement mode:
 1. You MUST preserve the core experiment structure provided in "Previous Experiment Spec"
 2. You MUST NOT change the research question or hypotheses
-3. You SHOULD focus on improving:
+3. **CRITICAL: You MUST NOT change `data_modality` (dataset_id, source_family, type)**. Keep the EXACT same dataset.
+4. You SHOULD focus on improving:
    - Model architecture (e.g., add regularization, increase depth)
    - Training methodology (e.g., learning rate, epochs)
    - Feature engineering or preprocessing
-4. Your "revision_directives" MUST explain exactly what you changed and why
-5. Refinement = iterate on what worked; do NOT start from scratch
+5. Your "revision_directives" MUST explain exactly what you changed and why
+6. Refinement = iterate on what worked; do NOT start from scratch
 """
 
 # ============================================================
