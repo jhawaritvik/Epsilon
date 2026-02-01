@@ -370,10 +370,18 @@ Design a statistically rigorous experiment.
                 continue
 
 
-            # 1.5 Clean artifacts - REMOVED: Don't delete raw_results.json prematurely
-            # The new execution will overwrite it if successful. Deleting early causes
-            # results to be lost when subsequent iterations fail (dataset resolution, etc.)
-            # Previous behavior deleted raw_results.json here, causing benchmark failures.
+            # 1.5 Clean artifacts - RENAME STRATEGY
+            # Rename existing results to backup to ensure we don't evaluate stale data
+            # if the new execution silently fails to write results.
+            raw_results_path = f"{exp_dir}/raw_results.json"
+            backup_results_path = f"{exp_dir}/raw_results_backup.json"
+            
+            if os.path.exists(raw_results_path):
+                # If a backup already exists (from a previous failed run?), overwrite it
+                if os.path.exists(backup_results_path):
+                    os.remove(backup_results_path)
+                os.rename(raw_results_path, backup_results_path)
+                logger.info("Renamed previous raw_results.json to backup to ensure freshness.")
 
             # 2. EXECUTION
             logger.info("Running Code & Execution Agent...")
@@ -381,29 +389,39 @@ Design a statistically rigorous experiment.
             self.emit("agent_completed", {"agent": "Design"})
             self.emit("agent_started", {"agent": "Execute"})
             
+            # Context for code agent
             execution_prompt = f"""
 Experiment Specification:
-{json.dumps({
-    "experiment_specification": experiment_spec.get("experiment_specification"),
-    "statistical_analysis_plan": experiment_spec.get("statistical_analysis_plan"),
-    "data_modality": experiment_spec.get("experiment_specification", {}).get("data_modality"),
-    "revision_directives": experiment_spec.get("revision_directives"),
-    "execution_mode": experiment_spec.get("execution_mode", "validation")
-}, indent=2)}
+{json.dumps(experiment_spec, indent=2)}
+
 Implement and execute this experiment.
+Context/History: {history_summary}
+Adaptive Hint: {adaptive_hint}
+dataset_hint: {experiment_spec.get("experiment_specification", {}).get("dataset_requirements", {}).get("dataset_hint", "")}
 """
-            execution_result = Runner.run_sync(code_execution_agent, execution_prompt)
-            logger.info(f"Execution Output: {execution_result.final_output}")
+            # Inject dataset hint if present in the spec (passed from Design Agent or separate)
+            # Actually dataset_hint is usually in task definition -> Design Agent -> spec. 
             
+            execution_result = Runner.run_sync(code_execution_agent, execution_prompt)
+            exec_json_str = execution_result.final_output
+            
+            # Parse output
             try:
-                exec_json_str = execution_result.final_output.strip().replace("```json", "").replace("```", "")
-                exec_data = json.loads(exec_json_str)
+                # Cleanup potential markdown
+                clean_exec = exec_json_str.strip().replace("```json", "").replace("```", "")
+                exec_data = json.loads(clean_exec)
                 exec_status = exec_data.get("execution_status", "unknown")
             except:
                 exec_status = "failed"
             
             if exec_status != "success":
                 logger.warning(f"Execution Status is {exec_status}. SKIP EVALUATION.")
+                
+                # RESTORE VALID RESULTS if execution failed
+                if os.path.exists(backup_results_path) and not os.path.exists(raw_results_path):
+                    os.rename(backup_results_path, raw_results_path)
+                    logger.info("Restored backup results due to execution failure.")
+                
                 feedback = f"Execution failed (Status: {exec_status}). Fix code errors."
                 self.memory_service.write_run(
                     run_id=self.run_id, user_id=self.user_id, iteration=self.current_iteration,
@@ -429,6 +447,12 @@ Implement and execute this experiment.
                     data_path = fallback
                 else:
                     feedback = "Execution reported success but 'raw_results.json' is missing."
+                    
+                    # RESTORE VALID RESULTS if execution supposedly succeeded but left no results
+                    if os.path.exists(backup_results_path):
+                        os.rename(backup_results_path, raw_results_path)
+                        logger.info("Restored backup results (missing output file).")
+                    
                     self.memory_service.write_run(
                         run_id=self.run_id, iteration=self.current_iteration,
                         research_goal=research_goal, experiment_spec=experiment_spec,
