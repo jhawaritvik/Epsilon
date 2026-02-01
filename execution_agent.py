@@ -16,6 +16,40 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ============================================================
+# Docker Configuration
+# ============================================================
+
+# Set USE_DOCKER=true to execute experiments in Docker containers
+# Falls back to local execution if Docker is unavailable
+USE_DOCKER = os.environ.get("USE_DOCKER", "false").lower() == "true"
+
+# Lazy import for Docker executor (only when needed)
+_docker_executor = None
+_docker_available = None
+
+def _get_docker_executor():
+    """Lazy initialization of Docker executor."""
+    global _docker_executor, _docker_available
+    
+    if _docker_available is None:
+        try:
+            from docker_executor import DockerExecutor, is_docker_available
+            _docker_available = is_docker_available()
+            if _docker_available:
+                _docker_executor = DockerExecutor()
+                logger.info("Docker executor initialized successfully")
+            else:
+                logger.info("Docker not available, will use local execution")
+        except ImportError as e:
+            logger.warning(f"Docker executor module not found: {e}")
+            _docker_available = False
+        except Exception as e:
+            logger.warning(f"Failed to initialize Docker executor: {e}")
+            _docker_available = False
+    
+    return _docker_executor if _docker_available else None
+
+# ============================================================
 # TOOLS: Execution Utilities
 # ============================================================
 
@@ -205,8 +239,10 @@ def execute_experiment(code: str, execution_mode: str = "validation") -> str:
     """
     Saves the provided Python code to 'run_experiment.py' and executes it.
     Captures stdout, stderr, and returns the execution summary.
+    
+    Execution can occur in Docker (if USE_DOCKER=true and Docker is available)
+    or locally via subprocess (fallback).
     """
-    # Use explicit argument
     logger.info(f"execute_experiment called (mode={execution_mode})")
     EXPERIMENT_DIR = get_experiment_dir()
     _ensure_experiment_dir()
@@ -222,8 +258,7 @@ def execute_experiment(code: str, execution_mode: str = "validation") -> str:
                 
             source = dataset_meta.get("dataset_source", "unknown")
             
-            # 1. Procedural Invariant: No external data loaders
-            # 1. Procedural Invariant: No external data loaders
+            # Procedural Invariant: No external data loaders
             if source == "procedural" or source == "simulation":
                 # Forbidden: Downloading external data
                 forbidden_loaders = ["torchvision.datasets", "keras.datasets", "tensorflow_datasets"]
@@ -237,46 +272,109 @@ def execute_experiment(code: str, execution_mode: str = "validation") -> str:
                     if bad in code:
                         return f"CONTRACT VIOLATION: Dataset source is '{source}', but code uses '{bad}'. This is strictly forbidden. You must generate data internally (e.g. numpy, make_classification)."
                         
-            # 2. External Invariant: Must use authorised loaders if specified
-            # (Future: Check strictly for the dataset_id)
-            
         except Exception as e:
             logger.warning(f"Could not verify contract: {e}")
-    else:
-        # If no resolution happened, we might warn, but let's allow for now (backward compat)
-        pass
-
-    file_path = os.path.join(EXPERIMENT_DIR, "run_experiment.py")
-    with open(file_path, "w") as f:
-        f.write(code)
         
     # Set timeout based on mode
-    timeout_seconds = 300 # Default / Validation
+    timeout_seconds = 300  # Default / Validation
     if execution_mode == "scientific":
-        timeout_seconds = 1800 # 30 mins
+        timeout_seconds = 1800  # 30 mins
+    
+    # ----------------------------------------------------
+    # EXECUTION: Docker or Local
+    # ----------------------------------------------------
+    
+    # Try Docker execution if enabled
+    if USE_DOCKER:
+        docker_executor = _get_docker_executor()
+        if docker_executor:
+            logger.info("Executing experiment in Docker container")
+            return _execute_in_docker(docker_executor, code, EXPERIMENT_DIR, timeout_seconds)
+        else:
+            logger.info("Docker unavailable, falling back to local execution")
+    
+    # Local execution (default or fallback)
+    return _execute_locally(code, EXPERIMENT_DIR, timeout_seconds)
+
+
+def _execute_in_docker(executor, code: str, experiment_dir: str, timeout: int) -> str:
+    """
+    Execute code inside a Docker container.
+    
+    Args:
+        executor: DockerExecutor instance.
+        code: Python code to execute.
+        experiment_dir: Directory for artifacts.
+        timeout: Execution timeout in seconds.
+        
+    Returns:
+        Execution result message.
+    """
+    try:
+        result = executor.execute_code(
+            code=code,
+            experiment_dir=experiment_dir,
+            timeout=timeout
+        )
+        
+        if result.success:
+            return f"Execution successful (Docker).\nLog saved to execution.log"
+        elif result.timed_out:
+            return "Execution timed out (Docker)."
+        else:
+            return (
+                f"Execution failed (Docker, Return Code {result.return_code}).\n\n"
+                f"STDERR:\n{result.stderr}\n\n"
+                f"STDOUT:\n{result.stdout}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Docker execution failed: {e}")
+        # Fallback to local execution on Docker failure
+        logger.info("Falling back to local execution due to Docker error")
+        return _execute_locally(code, experiment_dir, timeout)
+
+
+def _execute_locally(code: str, experiment_dir: str, timeout: int) -> str:
+    """
+    Execute code locally via subprocess.
+    
+    Args:
+        code: Python code to execute.
+        experiment_dir: Directory for artifacts.
+        timeout: Execution timeout in seconds.
+        
+    Returns:
+        Execution result message.
+    """
+    file_path = os.path.join(experiment_dir, "run_experiment.py")
+    with open(file_path, "w") as f:
+        f.write(code)
     
     try:
         # Execute the script INSIDE the experiments directory
-        # This ensures all artifacts (raw_results.json) are saved there
         result = subprocess.run(
             [sys.executable, "run_experiment.py"],
-            cwd=EXPERIMENT_DIR,
+            cwd=experiment_dir,
             capture_output=True,
             text=True,
-            timeout=timeout_seconds
+            timeout=timeout
         )
         
         execution_log = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         
-        log_path = os.path.join(EXPERIMENT_DIR, "execution.log")
+        log_path = os.path.join(experiment_dir, "execution.log")
         with open(log_path, "w") as f:
             f.write(execution_log)
             
         if result.returncode == 0:
             return f"Execution successful.\nLog saved to execution.log"
         else:
-            # Return the error log so the agent can debug
-            return f"Execution failed (Return Code {result.returncode}).\n\nSTDERR:\n{result.stderr}\n\nSTDOUT:\n{result.stdout}"
+            return (
+                f"Execution failed (Return Code {result.returncode}).\n\n"
+                f"STDERR:\n{result.stderr}\n\n"
+                f"STDOUT:\n{result.stdout}"
+            )
             
     except subprocess.TimeoutExpired:
         return "Execution timed out."
@@ -288,8 +386,20 @@ def install_package(package_name: str) -> str:
     """
     Installs a Python package into the current environment using pip.
     Use this ONLY when you encounter a `ModuleNotFoundError` or need a specific library not present.
+    
+    Note: When using Docker execution, packages should be pre-installed in the Docker image.
+    This function installs locally; for Docker, rebuild the image with the new package.
     """
     logger.info(f"install_package called for: {package_name}")
+    
+    # Check if we're in Docker mode - warn user about package management
+    if USE_DOCKER and _get_docker_executor():
+        logger.warning(
+            f"Docker mode active. Package '{package_name}' will be installed locally, "
+            "but Docker container uses pre-built image. Consider adding to requirements.txt "
+            "and rebuilding the Docker image."
+        )
+    
     try:
         # Use module pip to ensure it installs in the current python environment
         cmd = [sys.executable, "-m", "pip", "install", package_name]

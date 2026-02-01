@@ -94,6 +94,27 @@ The system will:
 4.  Execute the code.
 5.  Analyze results and generate `FINAL_REPORT.html` in the experiment directory.
 
+### Docker Execution (Recommended)
+
+For improved security and isolation, Epsilon can execute experiments inside Docker containers:
+
+1.  **Build the Docker image**:
+    ```bash
+    docker build -f docker/Dockerfile.execution -t epsilon-executor:latest .
+    ```
+
+2.  **Enable Docker execution** in your `.env`:
+    ```ini
+    USE_DOCKER=true
+    ```
+
+3.  **Run as usual**:
+    ```bash
+    python main.py --goal "Your research question"
+    ```
+
+The system automatically falls back to local execution if Docker is unavailable.
+
 ---
 
 ## ⚠️ Security Notice

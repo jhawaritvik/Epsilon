@@ -1,7 +1,9 @@
+# Environment
 .env
 .venv/
 __pycache__/
 *.pyc
+*.pyo
 
 # Research Engine Artifacts
 experiments/
@@ -11,14 +13,13 @@ latest_run_analysis.md
 goal.txt
 research_prompt.txt
 
-
 # Common User/IDE Settings
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Project Specific
+# Project Specific Artifacts
 dataset_used.json
 raw_results.json
 run_experiment.py
@@ -26,10 +27,20 @@ execution.log
 experiment_summary.json
 final_report.md
 *.png
-*.html
 experiments_cache/
 convert_report.py
 regenerate_report_tool.py
+
+# Test Output Files
+test_output.txt
+test_errors.txt
+test_docker_output.txt
+testing_eval.txt
+full_output.txt
+memory_failure.log
+
+# Keep architecture docs but ignore generated HTML reports
+!EPSILON_ARCHITECTURE.html
 
 # Supabase/Migration
 supabase/functions/
@@ -37,3 +48,8 @@ supabase/functions/
 # OS specifics
 .DS_Store
 Thumbs.db
+
+# Python packaging
+*.egg-info/
+dist/
+build/

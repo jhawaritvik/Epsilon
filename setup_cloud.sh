@@ -26,7 +26,7 @@ echo -e "${NC}"
 
 # Configuration
 REPO_URL="https://github.com/jhawaritvik/Epsilon.git"
-BRANCH="testing-pipeline-evaluation"
+BRANCH="main"
 INSTALL_DIR="${HOME}/Epsilon"
 
 # -----------------------------------------------------------------------------
@@ -136,12 +136,43 @@ echo -e "${YELLOW}[6/6] Running quick validation...${NC}"
 # Test imports
 python -c "
 from controller import ResearchController
-from research_agent import ResearchAgent
-from experiment_agent import ExperimentAgent
-from execution_agent import ExecutionAgent
-from evaluation_agent import EvaluationAgent
+from research_agent import research_agent
+from experiment_agent import experiment_design_agent
+from execution_agent import code_execution_agent
+from evaluation_agent import evaluation_agent
 print('  ✓ All core modules imported successfully')
 " || echo -e "${RED}  ✗ Import validation failed${NC}"
+
+# -----------------------------------------------------------------------------
+# Step 7: Optional Docker Setup
+# -----------------------------------------------------------------------------
+echo ""
+echo -e "${YELLOW}[Optional] Docker Execution Setup${NC}"
+echo ""
+
+if command -v docker &> /dev/null; then
+    echo -e "${CYAN}  Docker is available. Would you like to build the execution container?${NC}"
+    read -p "  Build Docker image for isolated execution? (y/N): " BUILD_DOCKER
+    
+    if [[ "$BUILD_DOCKER" =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}  Building Docker image (this may take a few minutes)...${NC}"
+        docker build -f docker/Dockerfile.execution -t epsilon-executor:latest . && \
+            echo -e "${GREEN}  ✓ Docker image built successfully${NC}" || \
+            echo -e "${RED}  ✗ Docker build failed${NC}"
+        
+        # Update .env to enable Docker
+        if ! grep -q "USE_DOCKER" .env; then
+            echo "USE_DOCKER=true" >> .env
+            echo -e "${GREEN}  ✓ Docker execution enabled in .env${NC}"
+        fi
+    else
+        echo -e "${YELLOW}  Skipping Docker setup (you can run this later)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  Docker not installed. Experiments will run locally.${NC}"
+    echo "  To enable Docker isolation later, install Docker and run:"
+    echo "    docker build -f docker/Dockerfile.execution -t epsilon-executor:latest ."
+fi
 
 # -----------------------------------------------------------------------------
 # Complete!

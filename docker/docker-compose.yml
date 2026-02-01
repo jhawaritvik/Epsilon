@@ -1,0 +1,22 @@
+# Docker Compose for Epsilon Execution Environment
+# Usage: docker compose -f docker/docker-compose.yml up
+
+services:
+  executor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.execution
+    image: epsilon-executor:latest
+    container_name: epsilon-executor
+    volumes:
+      - ../experiments:/workspace/experiments
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Resource limits for safety
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4'
+    # No network access by default (can be enabled if needed)
+    network_mode: none
