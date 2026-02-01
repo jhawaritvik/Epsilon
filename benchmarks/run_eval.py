@@ -439,9 +439,14 @@ class BenchmarkRunner:
             metrics=metrics
         )
     
-    def run_suite(self, suite: str, max_tasks: Optional[int] = None) -> SuiteResult:
+    def run_suite(self, suite: str, max_tasks: Optional[int] = None, skip_tasks: int = 0) -> SuiteResult:
         """Run all tasks in a benchmark suite."""
         tasks = get_tasks_for_suite(suite)
+        
+        # Skip first N tasks
+        if skip_tasks > 0:
+            tasks = tasks[skip_tasks:]
+            logger.info(f"Skipping first {skip_tasks} tasks")
         
         if max_tasks:
             tasks = tasks[:max_tasks]
@@ -587,6 +592,13 @@ Examples:
         help="Directory to save results"
     )
     
+    parser.add_argument(
+        "--skip",
+        type=int,
+        default=0,
+        help="Number of tasks to skip from the beginning (e.g., --skip 1 to skip task 1)"
+    )
+    
     args = parser.parse_args()
     
     print_banner()
@@ -598,7 +610,7 @@ Examples:
     
     # Run benchmarks
     runner = BenchmarkRunner(results_dir=args.results_dir)
-    result = runner.run_suite(args.suite, max_tasks=args.tasks)
+    result = runner.run_suite(args.suite, max_tasks=args.tasks, skip_tasks=args.skip)
     
     # Print final summary
     print("\n" + runner._generate_summary(result))
