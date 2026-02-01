@@ -369,9 +369,11 @@ Design a statistically rigorous experiment.
                 self.current_iteration += 1
                 continue
 
-            # 1.5 Clean artifacts
-            if os.path.exists(f"{exp_dir}/raw_results.json"):
-                os.remove(f"{exp_dir}/raw_results.json")
+
+            # 1.5 Clean artifacts - REMOVED: Don't delete raw_results.json prematurely
+            # The new execution will overwrite it if successful. Deleting early causes
+            # results to be lost when subsequent iterations fail (dataset resolution, etc.)
+            # Previous behavior deleted raw_results.json here, causing benchmark failures.
 
             # 2. EXECUTION
             logger.info("Running Code & Execution Agent...")
