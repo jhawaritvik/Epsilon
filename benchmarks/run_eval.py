@@ -240,7 +240,7 @@ def get_tasks_for_suite(suite: str) -> List[Dict[str, Any]]:
 def _extract_metric_value(results: Any, target: Dict[str, Any]) -> Optional[float]:
     """
     Extract the metric value from raw_results.json based on target definition.
-    Handles nested paths and list averaging.
+    Handles nested paths (e.g., 'aggregate.mean_relative_improvement') and list averaging.
     """
     key_path = target.get("key_path")
     metric_name = target.get("metric")
@@ -249,7 +249,23 @@ def _extract_metric_value(results: Any, target: Dict[str, Any]) -> Optional[floa
     if key_path is None and isinstance(results, list):
         return float(len(results))
     
-    # Try direct key access
+    # Handle dotted nested paths (e.g., "aggregate.mean_relative_improvement")
+    if key_path and isinstance(results, dict) and "." in key_path:
+        parts = key_path.split(".")
+        current = results
+        for part in parts:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                current = None
+                break
+        if current is not None:
+            if isinstance(current, (int, float)):
+                return float(current)
+            elif isinstance(current, list) and current:
+                return float(sum(current) / len(current))
+    
+    # Try direct key access (non-nested)
     if key_path and isinstance(results, dict):
         if key_path in results:
             val = results[key_path]
@@ -268,7 +284,7 @@ def _extract_metric_value(results: Any, target: Dict[str, Any]) -> Optional[floa
             elif isinstance(val, list) and val:
                 return float(sum(val) / len(val))
     
-    # Search recursively in dict
+    # Search recursively in dict for partial metric name match
     if isinstance(results, dict):
         for key, val in results.items():
             if metric_name and metric_name.lower() in key.lower():
@@ -276,6 +292,14 @@ def _extract_metric_value(results: Any, target: Dict[str, Any]) -> Optional[floa
                     return float(val)
                 elif isinstance(val, list) and val:
                     return float(sum(val) / len(val))
+            # Also search in nested dicts
+            if isinstance(val, dict):
+                for subkey, subval in val.items():
+                    if metric_name and metric_name.lower() in subkey.lower():
+                        if isinstance(subval, (int, float)):
+                            return float(subval)
+                        elif isinstance(subval, list) and subval:
+                            return float(sum(subval) / len(subval))
     
     return None
 
