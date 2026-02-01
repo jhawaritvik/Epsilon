@@ -153,7 +153,7 @@ def dataset_resolver(
                 resolved = {
                     "dataset_source": "huggingface",
                     "dataset_id": ds.id,
-                    "version": ds.last_modified,
+                    "version": ds.last_modified.isoformat() if hasattr(ds.last_modified, 'isoformat') else str(ds.last_modified),
                     "status": "resolved"
                 }
 
@@ -185,7 +185,7 @@ def dataset_resolver(
                     resolved = {
                         "dataset_source": "huggingface",
                         "dataset_id": best_match.id,
-                        "version": best_match.last_modified,
+                        "version": best_match.last_modified.isoformat() if hasattr(best_match.last_modified, 'isoformat') else str(best_match.last_modified),
                         "status": "resolved",
                         "resolution_method": "descriptive_search",
                         "load_instruction": f"Use: load_dataset('{best_match.id}')"
