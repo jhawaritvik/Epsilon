@@ -118,10 +118,10 @@ MLAGENTBENCH_TASKS = [
         "gpu_required": False,
         # Target validation: check if RMSE reduction percentage meets threshold
         "target": {
-            "metric": "percent_rmse_reduction",
+            "metric": "mean_relative_improvement",
             "direction": "higher",
-            "threshold": 10.0,
-            "key_path": "mean_percent_rmse_reduction"  # OR average of percent_rmse_reduction list
+            "threshold": 0.10,  # 10% as decimal
+            "key_path": "aggregate.mean_relative_improvement"
         }
     },
     {
