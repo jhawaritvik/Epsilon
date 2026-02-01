@@ -134,7 +134,38 @@ def dataset_resolver(
 
             try:
                 from huggingface_hub import list_datasets
+                
+                # Try the full source first
                 results = list(list_datasets(search=source, limit=1))
+                
+                # If no results and source has multiple words, try individual keywords
+                if not results and len(source.split()) > 1:
+                    keywords = source.split()
+                    logger.info(f"No results for '{source}', trying individual keywords: {keywords}")
+                    
+                    for keyword in keywords:
+                        # Skip common filler words
+                        if keyword.lower() in ['the', 'a', 'an', 'for', 'of', 'with', 'tabular', 'dataset']:
+                            continue
+                        results = list(list_datasets(search=keyword, limit=1))
+                        if results:
+                            logger.info(f"Found dataset with keyword '{keyword}': {results[0].id}")
+                            break
+                
+                # Also try description field if it exists and no results yet
+                if not results and data_modality.get("description"):
+                    desc = data_modality.get("description")
+                    logger.info(f"Trying description field: '{desc}'")
+                    results = list(list_datasets(search=desc, limit=1))
+                    
+                    # If description also fails, try extracting key terms
+                    if not results:
+                        desc_keywords = [w for w in desc.split() if len(w) > 4 and w.lower() not in ['tabular', 'dataset', 'classification', 'regression', 'prediction']]
+                        for keyword in desc_keywords[:3]:  # Try first 3 meaningful words
+                            results = list(list_datasets(search=keyword, limit=1))
+                            if results:
+                                logger.info(f"Found dataset with description keyword '{keyword}': {results[0].id}")
+                                break
 
                 if not results:
                     # Return structured error instead of raising exception
