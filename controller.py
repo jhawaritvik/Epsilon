@@ -321,12 +321,30 @@ class ResearchController:
             self.emit("agent_started", {"agent": "Design"})
             self.emit("iteration_started", {"iteration": self.current_iteration})
             
+            # [NEW] Prepare design context - preserve successful designs for refinement
+            refinement_context = ""
+            if hasattr(self, '_last_successful_spec') and self._last_successful_spec:
+                refinement_context = f"""
+--- REFINEMENT MODE ---
+The previous experiment design executed SUCCESSFULLY but did NOT meet the target.
+You MUST refine this design, NOT redesign from scratch.
+Previous Experiment Spec (to refine):
+{json.dumps(self._last_successful_spec, indent=2)}
+
+Focus your modifications on:
+1. Improving the model/technique to better achieve the target
+2. Adjusting hyperparameters or methodology
+3. NOT changing the core hypothesis or research question
+---
+"""
+            
             design_prompt = f"""
 User Goal: {research_goal}
 Research Corpus:
 {json.dumps([c[:15000] + "... (truncated)" if len(c) > 15000 else c for c in self.research_corpus])}
 {history_summary}
 {knowledge_context}
+{refinement_context}
 Feedback from Previous Iteration:
 {feedback if feedback else "None (First Iteration)"}
 {adaptive_hint}
@@ -485,7 +503,17 @@ Perform the evaluation based on the following context:
             # Feedback Generation
             issue_type = verdict.get("issue_type", "none")
             rationale = verdict.get("rationale", "")
-            feedback = f"Issue: {issue_type} ({classification}). {rationale}."
+            
+            # [NEW] Preserve successful design for refinement if target not met
+            # This allows the Design Agent to refine rather than completely redesign
+            if classification in ["promising", "failed"] and issue_type in ["target_not_met", "design", "none"]:
+                # Code ran successfully but target wasn't achieved
+                self._last_successful_spec = experiment_spec
+                feedback = f"REFINEMENT REQUIRED: {issue_type} ({classification}). {rationale}. The code executed successfully but the target was not met. Refine the approach, do not redesign from scratch."
+            else:
+                # Clear the preserved spec - need fresh design for execution errors
+                self._last_successful_spec = None
+                feedback = f"Issue: {issue_type} ({classification}). {rationale}."
             
             self.memory_service.write_run(
                 run_id=self.run_id, iteration=self.current_iteration,

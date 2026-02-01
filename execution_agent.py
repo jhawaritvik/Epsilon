@@ -495,6 +495,7 @@ DO NOT output conversational text. ONLY output the JSON.
 
 code_execution_agent = Agent(
     name="Code & Execution Agent",
+    model=os.getenv("MODEL_NAME", "gpt-5.2"),
     instructions=execution_instructions,
     tools=[dataset_resolver, execute_experiment, install_package],
 )

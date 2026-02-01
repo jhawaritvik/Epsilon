@@ -236,6 +236,7 @@ You **MUST** call `save_evidence` for every important finding. If you finish wit
 
 research_agent = Agent(
     name="Research Exploration Agent",
+    model=os.getenv("MODEL_NAME", "gpt-5.2"),
     instructions=research_instructions,
     tools=[web_search, read_pdf, read_webpage, query_evidence, save_evidence],
 )

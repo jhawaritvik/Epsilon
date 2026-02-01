@@ -1,6 +1,7 @@
 from agents import Agent, Runner, function_tool
 import logging
 import json
+import os
 from dotenv import load_dotenv
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -195,6 +196,17 @@ Required Output Schema:
 
 Be explicit. Remove ambiguity. Do not suggest — decide.
 If "Feedback from Previous Iteration" is present, you MUST address it in "revision_directives" or by modifying the spec.
+
+**REFINEMENT MODE (CRITICAL)**:
+If the feedback contains "REFINEMENT MODE" or "REFINEMENT REQUIRED", you are operating in refinement mode:
+1. You MUST preserve the core experiment structure provided in "Previous Experiment Spec"
+2. You MUST NOT change the research question or hypotheses
+3. You SHOULD focus on improving:
+   - Model architecture (e.g., add regularization, increase depth)
+   - Training methodology (e.g., learning rate, epochs)
+   - Feature engineering or preprocessing
+4. Your "revision_directives" MUST explain exactly what you changed and why
+5. Refinement = iterate on what worked; do NOT start from scratch
 """
 
 # ============================================================
@@ -203,6 +215,7 @@ If "Feedback from Previous Iteration" is present, you MUST address it in "revisi
 
 experiment_design_agent = Agent(
     name="Experiment Design Agent",
+    model=os.getenv("MODEL_NAME", "gpt-5.2"),
     instructions=experiment_instructions,
     tools=[corpus_query, query_knowledge, query_past_failures],
 )

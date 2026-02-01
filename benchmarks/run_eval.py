@@ -115,7 +115,14 @@ MLAGENTBENCH_TASKS = [
         "baseline_rmse": 45000,
         "target_improvement": 0.10,
         "difficulty": "easy",
-        "gpu_required": False
+        "gpu_required": False,
+        # Target validation: check if RMSE reduction percentage meets threshold
+        "target": {
+            "metric": "percent_rmse_reduction",
+            "direction": "higher",
+            "threshold": 10.0,
+            "key_path": "mean_percent_rmse_reduction"  # OR average of percent_rmse_reduction list
+        }
     },
     {
         "id": "mlab_002",
@@ -124,7 +131,13 @@ MLAGENTBENCH_TASKS = [
         "baseline_accuracy": 0.75,
         "target_improvement": 0.04,
         "difficulty": "easy",
-        "gpu_required": False
+        "gpu_required": False,
+        "target": {
+            "metric": "accuracy",
+            "direction": "higher",
+            "threshold": 0.78,
+            "key_path": "final_accuracy"
+        }
     },
     {
         "id": "mlab_003",
@@ -133,7 +146,13 @@ MLAGENTBENCH_TASKS = [
         "baseline_accuracy": 0.85,
         "target_improvement": 0.024,
         "difficulty": "medium",
-        "gpu_required": False
+        "gpu_required": False,
+        "target": {
+            "metric": "accuracy",
+            "direction": "higher",
+            "threshold": 0.87,
+            "key_path": "final_accuracy"
+        }
     },
     {
         "id": "mlab_004",
@@ -142,7 +161,13 @@ MLAGENTBENCH_TASKS = [
         "baseline_mae": 5.2,
         "target_improvement": 0.10,
         "difficulty": "medium",
-        "gpu_required": False
+        "gpu_required": False,
+        "target": {
+            "metric": "percent_mae_reduction",
+            "direction": "higher",
+            "threshold": 10.0,
+            "key_path": "mean_percent_mae_reduction"
+        }
     },
     {
         "id": "mlab_005",
@@ -150,7 +175,14 @@ MLAGENTBENCH_TASKS = [
         "goal": "Systematically study the effect of hyperparameters (learning_rate, batch_size, hidden_units) on model performance. Report optimal configuration with statistical confidence.",
         "expected_outcome": "Identify optimal hyperparameters with confidence intervals",
         "difficulty": "hard",
-        "gpu_required": False
+        "gpu_required": False,
+        # For hyperparameter study, success = having valid results with multiple configs
+        "target": {
+            "metric": "num_configurations_tested",
+            "direction": "higher",
+            "threshold": 9,  # At least 9 configs (3x3 grid)
+            "key_path": None  # Use len(results) if results is a list
+        }
     },
 ]
 
@@ -205,6 +237,75 @@ def get_tasks_for_suite(suite: str) -> List[Dict[str, Any]]:
         raise ValueError(f"Unknown suite: {suite}")
 
 
+def _extract_metric_value(results: Any, target: Dict[str, Any]) -> Optional[float]:
+    """
+    Extract the metric value from raw_results.json based on target definition.
+    Handles nested paths and list averaging.
+    """
+    key_path = target.get("key_path")
+    metric_name = target.get("metric")
+    
+    # If results is a list (like hyperparameter study), return length
+    if key_path is None and isinstance(results, list):
+        return float(len(results))
+    
+    # Try direct key access
+    if key_path and isinstance(results, dict):
+        if key_path in results:
+            val = results[key_path]
+            if isinstance(val, (int, float)):
+                return float(val)
+            elif isinstance(val, list) and val:
+                # Average of list
+                return float(sum(val) / len(val))
+    
+    # Try metric name as key
+    if metric_name and isinstance(results, dict):
+        if metric_name in results:
+            val = results[metric_name]
+            if isinstance(val, (int, float)):
+                return float(val)
+            elif isinstance(val, list) and val:
+                return float(sum(val) / len(val))
+    
+    # Search recursively in dict
+    if isinstance(results, dict):
+        for key, val in results.items():
+            if metric_name and metric_name.lower() in key.lower():
+                if isinstance(val, (int, float)):
+                    return float(val)
+                elif isinstance(val, list) and val:
+                    return float(sum(val) / len(val))
+    
+    return None
+
+
+def _check_target_achieved(results: Any, target: Dict[str, Any]) -> tuple:
+    """
+    Check if the target was achieved based on the results.
+    Returns (success: bool, achieved_value: float or None, reason: str)
+    """
+    if not target:
+        return (True, None, "No target specified")
+    
+    threshold = target.get("threshold")
+    direction = target.get("direction", "higher")
+    
+    achieved_value = _extract_metric_value(results, target)
+    
+    if achieved_value is None:
+        return (False, None, f"Could not extract metric '{target.get('metric')}' from results")
+    
+    if direction == "higher":
+        success = achieved_value >= threshold
+        reason = f"Achieved {achieved_value:.4f}, Target >= {threshold}"
+    else:  # lower
+        success = achieved_value <= threshold
+        reason = f"Achieved {achieved_value:.4f}, Target <= {threshold}"
+    
+    return (success, achieved_value, reason)
+
+
 # =============================================================================
 # BENCHMARK RUNNER
 # =============================================================================
@@ -251,15 +352,46 @@ class BenchmarkRunner:
             
             if results_file.exists():
                 with open(results_file, 'r') as f:
-                    results = json.load(f)
-                    metrics["has_results"] = True
-                    metrics["results_preview"] = str(results)[:500]
+                    try:
+                        results = json.load(f)
+                        metrics["has_results"] = True
+                        metrics["results_preview"] = str(results)[:500]
+                        
+                        # Target validation - THE CRITICAL FIX
+                        target = task.get("target")
+                        if target:
+                            target_success, achieved_value, reason = _check_target_achieved(results, target)
+                            metrics["target_achieved"] = target_success
+                            metrics["achieved_value"] = achieved_value
+                            metrics["target_reason"] = reason
+                            
+                            if target_success:
+                                success = True
+                                logger.info(f"✅ TARGET MET: {reason}")
+                            else:
+                                success = False
+                                error_message = f"Target not met: {reason}"
+                                logger.warning(f"❌ TARGET NOT MET: {reason}")
+                        else:
+                            # No target defined, having results is enough
+                            success = True
+                            metrics["target_achieved"] = None
+                            
+                    except json.JSONDecodeError as e:
+                        metrics["has_results"] = False
+                        metrics["parse_error"] = str(e)
+                        success = False
+                        error_message = f"Invalid JSON in raw_results.json: {e}"
             else:
+                # NO RAW_RESULTS.JSON = AUTOMATIC FAILURE
                 metrics["has_results"] = False
+                success = False
+                error_message = "raw_results.json not found - experiment did not produce results"
+                logger.error(f"❌ FAILED: No raw_results.json in {experiment_dir}")
             
+            # Report is optional for success, but track it
             if report_file.exists():
                 metrics["has_report"] = True
-                success = True  # Basic success: produced a report
             else:
                 metrics["has_report"] = False
             
