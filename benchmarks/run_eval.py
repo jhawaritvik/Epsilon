@@ -111,19 +111,17 @@ MLAGENTBENCH_TASKS = [
     {
         "id": "mlab_001",
         "name": "House Prices Prediction",
-        "goal": "Improve a baseline linear regression model for predicting house prices using the California Housing dataset. Target: achieve >10% reduction in RMSE on validation set.",
+        "goal": "Improve a baseline linear regression model for predicting house prices. Target: achieve >10% reduction in RMSE on validation set.",
         "baseline_rmse": 45000,
         "target_improvement": 0.10,
         "difficulty": "easy",
         "gpu_required": False,
-        # Dataset hint for the Design Agent - use california housing
-        "dataset_hint": "leostelon/california-housing",
         # Target validation: check if RMSE reduction percentage meets threshold
         "target": {
-            "metric": "mean_relative_improvement",
-            "direction": "higher",
-            "threshold": 0.10,  # 10% as decimal
-            "key_path": "aggregate.mean_relative_improvement"
+            "metric": "rmse_ratio_mean",
+            "direction": "lower",
+            "threshold": 0.90,  # Goal: < 0.90 (which is >10% reduction)
+            "key_path": "rmse_ratio_mean"
         }
     },
     {
