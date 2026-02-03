@@ -48,7 +48,9 @@ class ReportGenerator:
         else:
             ds_source = dataset_meta.get('dataset_id') or dataset_meta.get('source_family', 'Unknown')
             ds_type = dataset_meta.get('type') or dataset_meta.get('requirements', {}).get('task_type', 'Unknown')
-            ds_details = json.dumps(dataset_meta.get('parameters', {}), indent=2)
+            # Prefer 'Details' if populated by dataset_resolver, else 'parameters'
+            details_content = dataset_meta.get('Details') or dataset_meta.get('parameters', {})
+            ds_details = json.dumps(details_content, indent=2)
 
         # 3. Visualizations
         plots = list(base_dir.glob("*.png"))
@@ -135,7 +137,7 @@ class ReportGenerator:
     @staticmethod
     def _generate_html(run_id: str, markdown_text: str, base_dir: Path) -> str:
         """
-        Creates a standalone HTML file with professional styling.
+        Creates a standalone HTML file with professional 'Academic Lab' styling.
         """
         import base64
         import re
@@ -189,41 +191,31 @@ class ReportGenerator:
             '<h2 class="section-header">4. Audit Trail</h2>',
             '</div><div class="section archive"><h2 class="section-header">4. Audit Trail</h2>'
         )
-
-        # 3.3 Make metrics feel "instrumented" (Metric Cards)
-        html_content = html_content.replace(
-            '<h3 class="subsection-header">Quantitative Metrics</h3>',
-            '<h3 class="subsection-header">Quantitative Metrics</h3>\n<div class="metric-box">'
-        )
-        # Close the metric box before the Audit Trail section starts (double closing div)
-        html_content = html_content.replace(
-            '</div><div class="section archive">', 
-            '</div></div><div class="section archive">'
-        )
         
-        # Cyberpunk / Sci-Fi Terminal CSS
+        # Academic / Professional CSS
         full_html = f"""
         <!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>EPSILON REPORT - {run_id}</title>
+            <title>EPSILON LAB REPORT - {run_id}</title>
             <style>
                 :root {{
-                    --bg-color: #0d0f14;
-                    --card-bg: #13161c;
-                    --text-color: #c0caf5;
-                    --text-muted: #565f89;
-                    --accent-color: #00ffc8;  /* Cyan Neon */
-                    --accent-secondary: #7aa2f7; /* Blue Neon */
-                    --border-color: #24283b;
-                    --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-                    --glow: 0 0 6px rgba(0, 255, 200, 0.12);
+                    --bg-color: #f9f9f9;
+                    --card-bg: #ffffff;
+                    --text-color: #1a1a1a;
+                    --text-muted: #666666;
+                    --accent-color: #2c3e50;  /* Dark Slate */
+                    --accent-secondary: #2980b9; /* Professional Blue */
+                    --border-color: #eaeaea;
+                    --font-serif: 'Georgia', 'Times New Roman', serif;
+                    --font-sans: 'Inter', 'Helvetica Neue', 'Arial', sans-serif;
+                    --font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
                 }}
                 
                 body {{
-                    font-family: var(--font-mono);
+                    font-family: var(--font-sans);
                     background-color: var(--bg-color);
                     color: var(--text-color);
                     margin: 0;
@@ -232,200 +224,152 @@ class ReportGenerator:
                 }}
                 
                 .container {{
-                    max-width: 900px;
+                    max-width: 850px;
                     margin: 0 auto;
-                    border: 1px solid var(--border-color);
-                    padding: 40px;
+                    border: 1px solid #ddd;
+                    padding: 60px;
                     background: var(--card-bg);
-                    box-shadow: 0 0 30px rgba(0,0,0,0.5);
-                    position: relative;
-                    overflow: hidden;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
                 }}
                 
-                /* Decorative decorative top bar */
-                .container::before {{
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 2px;
-                    background: linear-gradient(90deg, var(--accent-color), var(--accent-secondary));
-                    box-shadow: var(--glow);
-                }}
-
                 .report-header {{
                     text-align: center;
-                    border-bottom: 1px dashed var(--border-color);
+                    border-bottom: 2px solid var(--text-color);
                     padding-bottom: 20px;
                     margin-bottom: 40px;
                 }}
 
                 .title {{
-                    font-size: 2rem;
-                    text-transform: uppercase;
-                    letter-spacing: 2px;
-                    color: var(--accent-color);
+                    font-family: var(--font-serif);
+                    font-size: 2.2rem;
+                    color: var(--text-color);
                     margin: 0;
-                    text-shadow: 0 0 5px rgba(0, 255, 200, 0.4);
+                    font-weight: 700;
                 }}
                 
                 .run-id {{
-                    display: inline-block;
+                    display: block;
                     margin-top: 10px;
-                    font-size: 0.8rem;
+                    font-size: 0.85rem;
                     color: var(--text-muted);
-                    border: 1px solid var(--border-color);
-                    padding: 4px 10px;
-                    border-radius: 4px;
+                    font-family: var(--font-mono);
                 }}
 
                 h2, .section-header {{
-                    color: var(--accent-secondary);
-                    font-size: 1.4rem;
-                    text-transform: uppercase;
-                    padding-left: 0;
-                    margin-top: 0;
-                    margin-bottom: 25px;
-                    letter-spacing: 1px;
-                    border-left: none;
+                    color: var(--accent-color);
+                    font-family: var(--font-serif);
+                    font-size: 1.5rem;
+                    border-bottom: 1px solid #eee;
+                    padding-bottom: 10px;
+                    margin-top: 40px;
+                    margin-bottom: 20px;
+                    font-weight: 600;
                 }}
                 
                 h3, .subsection-header {{
-                    color: #fff;
+                    color: var(--accent-secondary);
                     font-size: 1.1rem;
-                    margin-top: 30px;
+                    margin-top: 25px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
                 }}
 
                 p, li {{
-                    font-size: 0.95rem;
-                    color: #a9b1d6;
-                }}
-
-                .section {{
-                    margin-bottom: 50px;
+                    font-size: 1rem;
+                    color: #333;
+                    text-align: justify;
                 }}
 
                 .section.highlight {{
-                    background: linear-gradient(180deg, rgba(0,255,200,0.04), transparent);
-                    border-left: 3px solid var(--accent-color);
-                    padding: 20px 25px;
+                    background: #f8fcfd;
+                    border-left: 4px solid var(--accent-secondary);
+                    padding: 20px 30px;
+                    border-radius: 4px;
                 }}
 
                 .section.archive {{
-                    background: #0f1117;
-                    border: 1px dashed var(--border-color);
+                    background: #f5f5f5;
+                    border: 1px dashed #ccc;
                     padding: 20px;
-                    opacity: 0.9;
-                }}
-
-                .metric-box {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 15px;
-                    margin: 20px 0;
-                }}
-
-                .metric-box .list-item {{
-                    background: #0d0f14;
-                    border: 1px solid var(--border-color);
-                    padding: 15px;
-                    font-size: 0.85rem;
-                    list-style-type: none; 
+                    margin-top: 50px;
                 }}
 
                 .code-block {{
-                    background: #0f1117;
-                    border: 1px solid var(--border-color);
+                    background: #f4f4f4;
+                    border: 1px solid #ddd;
                     padding: 15px;
                     border-radius: 4px;
                     margin: 20px 0;
                     font-size: 0.85rem;
                     overflow-x: auto;
-                    color: #e0af68; /* Orange-ish for logic */
+                    font-family: var(--font-mono);
                 }}
                 
-                /* Styled Artifact Links as "Terminal Buttons" */
+                /* Styled Artifact Links */
                 .artifact-link {{
-                    display: inline-block;
-                    border: 1px solid var(--accent-color);
-                    color: var(--accent-color);
-                    padding: 5px 15px;
+                    color: var(--accent-secondary);
                     text-decoration: none;
-                    font-size: 0.8rem;
-                    text-transform: uppercase;
-                    margin-right: 10px;
+                    border-bottom: 1px dotted var(--accent-secondary);
+                    font-weight: 500;
                     transition: all 0.2s;
                 }}
                 
                 .artifact-link:hover {{
-                    background: var(--accent-color);
-                    color: #000;
-                    box-shadow: var(--glow);
+                    background: #eef6fa;
+                    color: #1a5276;
                 }}
 
                 .figure {{
-                    border: 1px solid var(--border-color);
-                    background: #000;
+                    border: 1px solid #eee;
+                    background: #fff;
                     padding: 10px;
                     text-align: center;
                     margin: 30px 0;
+                    border-radius: 4px;
                 }}
                 
                 .caption {{
                     color: var(--text-muted);
-                    font-size: 0.8rem;
+                    font-size: 0.9rem;
                     margin-top: 10px;
                     font-style: italic;
+                    font-family: var(--font-serif);
                 }}
                 
                 .list-item {{
                     margin-bottom: 8px;
                     padding-left: 10px;
-                    border-left: 1px solid #24283b;
                 }}
 
                 img {{
                     max-width: 100%;
-                    border: 1px solid #333;
+                    border: 1px solid #eee;
                 }}
                 
                 .footer {{
-                    margin-top: 60px;
+                    margin-top: 80px;
                     padding-top: 20px;
-                    border-top: 1px solid var(--border-color);
-                    font-size: 0.75rem;
+                    border-top: 1px solid #eee;
+                    font-size: 0.8rem;
                     color: var(--text-muted);
                     text-align: center;
+                    font-family: var(--font-serif);
                 }}
 
-                /* Scrollbar */
-                ::-webkit-scrollbar {{
-                    width: 8px;
-                    height: 8px;
-                }}
-                ::-webkit-scrollbar-track {{
-                    background: #0d0f14; 
-                }}
-                ::-webkit-scrollbar-thumb {{
-                    background: #24283b; 
-                }}
-                ::-webkit-scrollbar-thumb:hover {{
-                    background: var(--accent-secondary); 
-                }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="report-header">
-                    <h1 class="title">Research Log</h1>
-                    <span class="run-id">ID: {run_id}</span>
+                    <h1 class="title">Research Laboratory Report</h1>
+                    <span class="run-id">RUN_ID: {run_id}</span>
                 </div>
                 <div class="content">
                     {html_content}
                     <div class="footer">
                         EPSILON AUTONOMOUS RESEARCH ENGINE<br>
-                        Deterministic • Auditable • Reproducible
+                        <em>Generated Report • Verifiable Audit Trail</em>
                     </div>
                 </div>
             </div>
@@ -450,8 +394,7 @@ class ReportGenerator:
     @staticmethod
     def _validate_results(results: Dict) -> Dict:
         """
-        Validates raw_results.json to determine if intervention improved over baseline.
-        Returns a validation dict with objective assessment.
+        Validates raw_results.json and attempts to extract Success Spec metrics.
         """
         validation = {
             "has_results": bool(results),
@@ -459,59 +402,66 @@ class ReportGenerator:
             "baseline_mean": None,
             "intervention_mean": None,
             "improvement_pct": None,
-            "warning": None
+            "warning": None,
+            "metric_name": "Unknown",
+            "p_value": None
         }
         
         if not results:
             validation["warning"] = "No raw results available."
             return validation
             
-        # Check for test_accuracy structure (common pattern)
-        test_acc = results.get("test_accuracy", {})
-        if test_acc:
-            baseline_key = None
-            intervention_key = None
+        # Try to detect Success Spec from results if present (best effort)
+        # Assuming run_eval.py output style
+        if "rmse_ratio_mean" in results:
+            validation["metric_name"] = "RMSE Ratio"
+            validation["intervention_mean"] = results.get("rmse_improved_mean", 0)
+            validation["baseline_mean"] = results.get("rmse_baseline_mean", 0)
+            validation["p_value"] = results.get("wilcoxon_one_sided_p")
             
-            # Find baseline vs intervention keys
-            for key in test_acc.keys():
-                lower_key = key.lower()
-                if "baseline" in lower_key or "control" in lower_key:
-                    baseline_key = key
-                else:
-                    intervention_key = key
+            ratio = results.get("rmse_ratio_mean", 1.0)
+            threshold = results.get("rmse_ratio_threshold", 0.9)
             
-            if baseline_key and intervention_key:
-                import numpy as np
-                baseline_vals = test_acc[baseline_key]
-                intervention_vals = test_acc[intervention_key]
+            if ratio < threshold:
+                validation["intervention_improved"] = True
+                validation["improvement_pct"] = (1 - ratio) * 100
+            else:
+                validation["intervention_improved"] = False
+                validation["improvement_pct"] = (1 - ratio) * 100 # likely negative
                 
-                if baseline_vals and intervention_vals:
-                    validation["baseline_mean"] = float(np.mean(baseline_vals))
-                    validation["intervention_mean"] = float(np.mean(intervention_vals))
-                    
-                    # Determine if higher is better (accuracy) or lower is better (loss)
-                    # For accuracy-like metrics, intervention should be higher
-                    if validation["intervention_mean"] > validation["baseline_mean"]:
-                        validation["intervention_improved"] = True
-                        improvement = ((validation["intervention_mean"] - validation["baseline_mean"]) 
-                                      / validation["baseline_mean"]) * 100
+        # Existing logic for test_accuracy etc
+        elif "test_accuracy" in results:
+             test_acc = results.get("test_accuracy", {})
+             if test_acc:
+                baseline_key = None
+                intervention_key = None
+                for key in test_acc.keys():
+                    lower_key = key.lower()
+                    if "baseline" in lower_key or "control" in lower_key:
+                        baseline_key = key
                     else:
-                        validation["intervention_improved"] = False
-                        improvement = ((validation["intervention_mean"] - validation["baseline_mean"]) 
-                                      / validation["baseline_mean"]) * 100
-                    
-                    validation["improvement_pct"] = round(improvement, 2)
-                    
-                    if not validation["intervention_improved"]:
-                        validation["warning"] = f"INTERVENTION PERFORMED WORSE: {validation['intervention_mean']:.2f}% vs baseline {validation['baseline_mean']:.2f}%"
-        
+                        intervention_key = key
+                if baseline_key and intervention_key:
+                    import numpy as np
+                    baseline_vals = test_acc[baseline_key]
+                    intervention_vals = test_acc[intervention_key]
+                    if baseline_vals and intervention_vals:
+                        validation["baseline_mean"] = float(np.mean(baseline_vals))
+                        validation["intervention_mean"] = float(np.mean(intervention_vals))
+                        if validation["intervention_mean"] > validation["baseline_mean"]:
+                            validation["intervention_improved"] = True
+                            validation["improvement_pct"] = ((validation["intervention_mean"] - validation["baseline_mean"]) / validation["baseline_mean"]) * 100
+                        else:
+                            validation["intervention_improved"] = False
+                            validation["improvement_pct"] = ((validation["intervention_mean"] - validation["baseline_mean"]) / validation["baseline_mean"]) * 100
+                            validation["warning"] = f"Intervention performed worse."
+
         return validation
     
     @staticmethod
     def _generate_narrative(goal: str, dataset: Dict, results: Dict) -> Dict:
         """
         Uses direct LLM call to write sections.
-        Returns dict with keys: 'executive_summary', 'methodology_description', 'results_discussion'
         """
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key or not OpenAI:
@@ -530,15 +480,11 @@ class ReportGenerator:
             validation_context = f"""
             ⚠️ CRITICAL VALIDATION WARNING: {validation["warning"]}
             You MUST report this negative result honestly. Do NOT claim improvement where none exists.
-            Baseline Mean: {validation["baseline_mean"]}
-            Intervention Mean: {validation["intervention_mean"]}
-            Improvement: {validation["improvement_pct"]}%
             """
         elif validation["intervention_improved"]:
             validation_context = f"""
-            ✅ Validated Improvement: {validation["improvement_pct"]}%
-            Baseline: {validation["baseline_mean"]:.2f}%
-            Intervention: {validation["intervention_mean"]:.2f}%
+            ✅ Validated Improvement: {validation["improvement_pct"]:.2f}%
+            P-Value: {validation["p_value"] if validation["p_value"] else 'N/A'}
             """
         else:
             validation_context = "No validation data available. Report only what can be verified from results."
@@ -548,7 +494,7 @@ class ReportGenerator:
             
             prompt = f"""
             You are writing a Technical Research Log for an autonomous AI engine.
-            TONE: High-tech, purely analytical, concise, "Cyberpunk Scientific". Avoid fluff.
+            TONE: Professional, academic lab report, concise, objective. No "cyberpunk" slang.
             
             GOAL: {goal}
             DATASET: {json.dumps(dataset)}
@@ -564,18 +510,12 @@ class ReportGenerator:
             1. Inventing numbers not present in RESULTS
             2. Claiming improvements not verified in validation_context
             3. Speculating about causes without data evidence
-            4. Adding interpretations beyond what the data shows
             
             You MUST:
             1. ONLY report values that appear in the RESULTS data above
             2. Quote specific numbers when discussing metrics
             3. State "Data not available" if information is missing
             4. If intervention failed, say so directly without hedging
-            5. Use phrases like "The data shows..." or "According to results..."
-            
-            GROUNDING CHECK: For every claim you make, you must be able to point to
-            a specific value in RESULTS or DATASET. If you cannot, do not make the claim.
-            ═══════════════════════════════════════════════════════════════════════
             
             Task: Write 3 sections in JSON format.
             1. "executive_summary": High-level technical abstract (approx 100 words). 
@@ -585,7 +525,8 @@ class ReportGenerator:
                - Reference only what is in DATASET
             3. "results_discussion": Analytical interpretation (approx 150 words).
                - Every claim must reference a specific value from RESULTS
-               - If intervention failed, hypothesize why based ONLY on observed data patterns
+               - If p-value is present, discuss statistical significance
+               - Briefly mention symmetry/skewness check if present in results (justify it: "suggests unbiased generation")
             
             Output JSON ONLY.
             """

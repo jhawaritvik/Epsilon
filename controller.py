@@ -349,6 +349,12 @@ Feedback from Previous Iteration:
 {feedback if feedback else "None (First Iteration)"}
 {adaptive_hint}
 Design a statistically rigorous experiment.
+
+SCIENTIFIC RIGOR GUIDELINES (ADAPT TO PROBLEM):
+1. VALIDATION STRATEGY: Choose the most rigorous validation method for this specific problem (e.g., Holdout Split, Cross-Validation, or specific simulation metrics).
+2. SUPERVISED LEARNING: If training a model, you SHOULD use a Train/Test split (e.g., 80/20) to measure generalization. Use the Test set ONLY for final reporting.
+3. JUSTIFICATION: If you do NOT use a split (e.g., for unsupervised learning, RL, or math), you must explicitly state why in your plan.
+4. METRICS: Report metrics that genuinely reflect success (e.g., generalization error) rather than just training performance.
 """
             design_result = Runner.run_sync(experiment_design_agent, design_prompt)
             experiment_spec_str = design_result.final_output

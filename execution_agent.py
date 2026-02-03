@@ -118,12 +118,31 @@ def dataset_resolver(
                 except Exception as e:
                     logger.warning(f"HuggingFace search failed: {e}. Using '{dataset_id}' as-is")
             
+            # Fetch full info for metadata
+            details = {}
+            try:
+                from huggingface_hub import list_datasets
+                info_list = list(list_datasets(search=dataset_id, limit=1, full=True))
+                if info_list:
+                     ds_info = info_list[0]
+                     details = {
+                         "description": getattr(ds_info, "description", "")[:500] + "..." if getattr(ds_info, "description", "") else "N/A",
+                         "downloads": getattr(ds_info, "downloads", 0),
+                         "likes": getattr(ds_info, "likes", 0),
+                         "tags": getattr(ds_info, "tags", []),
+                         "author": getattr(ds_info, "author", "unknown"),
+                         "created_at": str(getattr(ds_info, "created_at", "N/A"))
+                     }
+            except Exception as e:
+                logger.warning(f"Failed to fetch metadata details: {e}")
+
             resolved = {
                 "dataset_source": "huggingface",
                 "dataset_id": dataset_id,
                 "version": "latest",
                 "status": "resolved",
-                "load_instruction": f"Use: load_dataset('{dataset_id}')"
+                "load_instruction": f"Use: load_dataset('{dataset_id}')",
+                "Details": details
             }
         
         # PATH B: Family search (Fallback)
