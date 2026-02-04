@@ -127,7 +127,7 @@ MLAGENTBENCH_TASKS = [
     {
         "id": "mlab_002",
         "name": "Tabular Classification",
-        "goal": "Improve classification accuracy on a tabular dataset (Spaceship Titanic style). Baseline accuracy: 75%. Target: >78%.",
+        "goal": "Improve classification accuracy on the Adult Income dataset (predict income >50K). Use feature engineering and gradient boosting. Baseline accuracy: 75%. Target: >78%.",
         "baseline_accuracy": 0.75,
         "target_improvement": 0.04,
         "difficulty": "easy",
@@ -142,7 +142,7 @@ MLAGENTBENCH_TASKS = [
     {
         "id": "mlab_003",
         "name": "Text Sentiment Analysis",
-        "goal": "Improve sentiment classification on IMDB reviews using feature engineering. Baseline accuracy: 85%. Target: >87%.",
+        "goal": "Improve sentiment classification on the IMDB movie reviews dataset using TF-IDF and n-gram feature engineering. Baseline accuracy: 85%. Target: >87%.",
         "baseline_accuracy": 0.85,
         "target_improvement": 0.024,
         "difficulty": "medium",
@@ -157,7 +157,7 @@ MLAGENTBENCH_TASKS = [
     {
         "id": "mlab_004",
         "name": "Time Series Forecasting",
-        "goal": "Improve time series prediction for synthetic stock data. Reduce MAE by at least 10% over naive baseline.",
+        "goal": "Improve time series prediction using procedurally-generated synthetic stock price data with trend and noise. Use exponential smoothing or ARIMA. Reduce MAE by at least 10% over naive baseline.",
         "baseline_mae": 5.2,
         "target_improvement": 0.10,
         "difficulty": "medium",
@@ -172,7 +172,7 @@ MLAGENTBENCH_TASKS = [
     {
         "id": "mlab_005",
         "name": "Hyperparameter Optimization Study",
-        "goal": "Systematically study the effect of hyperparameters (learning_rate, batch_size, hidden_units) on model performance. Report optimal configuration with statistical confidence.",
+        "goal": "Systematically study the effect of hyperparameters (learning_rate, batch_size, hidden_units) on MLP model performance using procedurally-generated synthetic classification data (sklearn.datasets.make_classification). Report optimal configuration with statistical confidence.",
         "expected_outcome": "Identify optimal hyperparameters with confidence intervals",
         "difficulty": "hard",
         "gpu_required": False,
