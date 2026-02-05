@@ -65,7 +65,8 @@ def query_past_failures(query: str = None) -> str:
             summary.append({
                 "iteration": run.get("iteration"),
                 "issue_type": run.get("issue_type"),
-                "rationale": run.get("evaluation_verdict", {}).get("rationale")
+                "rationale": run.get("evaluation_verdict", {}).get("rationale"),
+                "error_details": run.get("feedback_passed")  # Actual error from execution.log
             })
             
         return json.dumps(summary, indent=2)
