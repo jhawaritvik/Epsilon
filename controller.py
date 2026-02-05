@@ -433,7 +433,28 @@ Ensure the JSON structure is flat or well-documented so it can be parsed easily.
                     os.rename(backup_results_path, raw_results_path)
                     logger.info("Restored backup results due to execution failure.")
                 
-                feedback = f"Execution failed (Status: {exec_status}). Fix code errors."
+                # [NEW] Read actual error from execution.log to help LLM self-correct
+                exec_log_path = f"{exp_dir}/execution.log"
+                error_details = ""
+                if os.path.exists(exec_log_path):
+                    try:
+                        with open(exec_log_path, 'r') as f:
+                            log_content = f.read()
+                            # Get last 1500 chars to capture the error traceback
+                            error_details = log_content[-1500:] if len(log_content) > 1500 else log_content
+                    except Exception as e:
+                        error_details = f"Could not read execution.log: {e}"
+                
+                feedback = f"""Execution failed (Status: {exec_status}).
+
+ACTUAL ERROR FROM execution.log:
+{error_details}
+
+FIX THE CODE: Address the specific error above. Common fixes:
+- If 'Sparse data was passed': Use sparse_output=False in OneHotEncoder or call .toarray()
+- If missing module: Import or install the required package
+- If type error: Check data types and conversions
+"""
                 self.memory_service.write_run(
                     run_id=self.run_id, user_id=self.user_id, iteration=self.current_iteration,
                     research_goal=research_goal, experiment_spec=experiment_spec,
