@@ -1,0 +1,29 @@
+{
+  "suite_name": "mlagentbench",
+  "timestamp": "20260205_194316",
+  "total_tasks": 1,
+  "successful_tasks": 1,
+  "failed_tasks": 0,
+  "success_rate": 1.0,
+  "avg_execution_time": 5869.086673974991,
+  "total_time": 5869.086844205856,
+  "task_results": [
+    {
+      "task_id": "mlab_003",
+      "task_name": "Text Sentiment Analysis",
+      "suite": "mlagentbench",
+      "success": true,
+      "execution_time_seconds": 5869.086673974991,
+      "improvement_percentage": null,
+      "error_message": null,
+      "metrics": {
+        "has_results": true,
+        "results_preview": "{'seed': 42, 'train_samples_used': 20000, 'test_samples_used': 25000, 'outer_folds': 5, 'inner_cv': 3, 'randomized_search_n_iter': 10, 'baseline_outer_cv_acc_mean': 0.8789999999999999, 'enhanced_outer_cv_acc_mean': 0.8985999999999998, 'outer_cv_diff_mean': 0.019600000000000017, 'outer_cv_diff_sd': 0.005435991169970769, 'shapiro_stat': 0.9564176067331835, 'shapiro_p': 0.78284382987912, 'paired_t_stat': 8.06236268393931, 'paired_t_p_one_sided': 0.0006426771845179318, 'wilcoxon_stat': 15.0, 'wilcox",
+        "target_achieved": true,
+        "achieved_value": 0.89204,
+        "target_reason": "Achieved 0.8920, Target >= 0.87",
+        "has_report": true
+      }
+    }
+  ]
+}

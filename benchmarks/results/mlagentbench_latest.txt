@@ -6,12 +6,12 @@ Total Tasks:     1
 Successful:      1
 Failed:          0
 Success Rate:    100.0%
-Avg Time/Task:   1334.0s
-Total Time:      1334.0s
+Avg Time/Task:   5869.1s
+Total Time:      5869.1s
 
 ------------------------------------------------------------
 TASK BREAKDOWN:
 ------------------------------------------------------------
-✅ House Prices Prediction (1334.0s)
+✅ Text Sentiment Analysis (5869.1s)
 
 ============================================================

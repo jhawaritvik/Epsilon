@@ -1,6 +1,0 @@
-{
-  "dataset_source": "huggingface",
-  "dataset_id": "sklearn.datasets.fetch_openml(name='adult', version=2)",
-  "resolved_via": "dataset_resolver",
-  "timestamp": "2026-02-05T00:48:02.869127Z"
-}
