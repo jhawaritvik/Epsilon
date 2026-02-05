@@ -336,6 +336,12 @@ def _execute_in_docker(executor, code: str, experiment_dir: str, timeout: int) -
             timeout=timeout
         )
         
+        # [FIX] Write execution.log for Docker too (like local execution)
+        execution_log = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        log_path = os.path.join(experiment_dir, "execution.log")
+        with open(log_path, "w") as f:
+            f.write(execution_log)
+        
         if result.success:
             return f"Execution successful (Docker).\nLog saved to execution.log"
         elif result.timed_out:
@@ -395,9 +401,19 @@ def _execute_locally(code: str, experiment_dir: str, timeout: int) -> str:
                 f"STDOUT:\n{result.stdout}"
             )
             
-    except subprocess.TimeoutExpired:
-        return "Execution timed out."
+    except subprocess.TimeoutExpired as e:
+        # [FIX] Write timeout error to execution.log
+        timeout_log = f"EXECUTION TIMEOUT\nThe script exceeded the allowed execution time.\nPartial output (if any):\n{getattr(e, 'stdout', '') or 'N/A'}"
+        log_path = os.path.join(experiment_dir, "execution.log")
+        with open(log_path, "w") as f:
+            f.write(timeout_log)
+        return "Execution timed out. Check execution.log for details."
     except Exception as e:
+        # [FIX] Write exception to execution.log
+        error_log = f"EXECUTION EXCEPTION\n{type(e).__name__}: {e}"
+        log_path = os.path.join(experiment_dir, "execution.log")
+        with open(log_path, "w") as f:
+            f.write(error_log)
         return f"An error occurred during execution: {e}"
 
 @function_tool

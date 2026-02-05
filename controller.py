@@ -364,7 +364,13 @@ SCIENTIFIC RIGOR GUIDELINES (ADAPT TO PROBLEM):
                 experiment_spec = json.loads(clean_spec)
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse Experiment Spec: {e}")
-                feedback = f"Critical Error: Invalid JSON output. Error: {str(e)}"
+                # [FIX] Include actual output for debugging
+                truncated_output = experiment_spec_str[:500] if len(experiment_spec_str) > 500 else experiment_spec_str
+                feedback = f"""Critical Error: Invalid JSON output from Design Agent.
+Parse Error: {str(e)}
+Actual Output (truncated):
+{truncated_output}
+"""
                 self.memory_service.write_run(
                     run_id=self.run_id, user_id=self.user_id, iteration=self.current_iteration,
                     research_goal=research_goal, experiment_spec={}, 
@@ -515,8 +521,14 @@ Perform the evaluation based on the following context:
             try:
                  clean_eval = eval_output_str.strip().replace("```json", "").replace("```", "")
                  eval_json = json.loads(clean_eval)
-            except:
-                feedback = "Evaluation output was not valid JSON."
+            except Exception as e:
+                # [FIX] Include actual output for debugging
+                truncated_output = eval_output_str[:500] if len(eval_output_str) > 500 else eval_output_str
+                feedback = f"""Evaluation output was not valid JSON.
+Parse Error: {e}
+Actual Output (truncated):
+{truncated_output}
+"""
                 self.memory_service.write_run(
                     run_id=self.run_id, iteration=self.current_iteration,
                     research_goal=research_goal, experiment_spec=experiment_spec,
