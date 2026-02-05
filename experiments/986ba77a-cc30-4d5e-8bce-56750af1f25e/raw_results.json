@@ -1,0 +1,30 @@
+{
+  "dataset_load_path": "sklearn.datasets.fetch_openml",
+  "n_samples": 48842,
+  "n_train": 39073,
+  "n_test": 9769,
+  "n_features_original": 14,
+  "n_num_features": 6,
+  "n_cat_features": 8,
+  "baseline_accuracy": 0.86764254273723,
+  "baseline_balanced_accuracy": 0.7758079204645096,
+  "baseline_roc_auc": 0.9214262230484529,
+  "tuned_cv_best_accuracy": 0.8730323593608992,
+  "tuned_best_params": {
+    "clf__learning_rate": 0.05,
+    "clf__max_depth": 5,
+    "clf__max_features": null,
+    "clf__min_samples_leaf": 5,
+    "clf__n_estimators": 300,
+    "clf__subsample": 1.0
+  },
+  "final_accuracy": 0.8759340771829256,
+  "accuracy": 0.8759340771829256,
+  "final_balanced_accuracy": 0.798846738151818,
+  "final_roc_auc": 0.9292061243451156,
+  "binomial_test_p0": 0.78,
+  "binomial_test_one_sided_pvalue": 6.68881468086511e-132,
+  "accuracy_one_sided_95pct_lower_bound": 0.8703137416848814,
+  "random_seed": 42,
+  "elapsed_seconds": 637.1483733654022
+}
