@@ -81,14 +81,22 @@ The final output is a self-contained HTML report containing:
 
 ### Usage
 
-To start a new research session, run `main.py` with your research question:
+To start a new research session:
 
-```bash
-python main.py --goal "Investigate the impact of learning rate on training variance in small MLPs"
-```
+1. **Create a prompt file** with your research question:
+   ```bash
+   echo "Investigate the impact of learning rate on training variance in small MLPs" > research_prompt.txt
+   ```
+
+2. **Run the engine**:
+   ```bash
+   python main.py
+   ```
+
+   If no `research_prompt.txt` exists, you'll be prompted to enter your goal interactively.
 
 The system will:
-1.  Initialize the agents.
+1.  Initialize the agents and authenticate you.
 2.  Plan the experiment.
 3.  Write `experiments/{run_id}/run_experiment.py`.
 4.  Execute the code.

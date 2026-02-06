@@ -4,8 +4,6 @@ import json
 import os
 from dotenv import load_dotenv
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-
 # ============================================================
 # Setup
 # ============================================================

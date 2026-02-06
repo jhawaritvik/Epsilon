@@ -188,7 +188,8 @@ def python_analysis_tool(code: str) -> str:
             "np": np,
             "stats": stats,
             "json": json,
-            "math": __import__("math")
+            "math": __import__("math"),
+            "os": __import__("os"),
         }
         
         with redirect_stdout(f):
