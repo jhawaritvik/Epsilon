@@ -6,7 +6,7 @@ __pycache__/
 *.pyo
 
 # Research Engine Artifacts
-experiments/
+# experiments/
 artifacts/
 *.log
 latest_run_analysis.md
