@@ -1,0 +1,29 @@
+{
+  "suite_name": "mlagentbench",
+  "timestamp": "20260205_180144",
+  "total_tasks": 1,
+  "successful_tasks": 1,
+  "failed_tasks": 0,
+  "success_rate": 1.0,
+  "avg_execution_time": 562.8543620109558,
+  "total_time": 562.8545255661011,
+  "task_results": [
+    {
+      "task_id": "mlab_002",
+      "task_name": "Tabular Classification",
+      "suite": "mlagentbench",
+      "success": true,
+      "execution_time_seconds": 562.8543620109558,
+      "improvement_percentage": null,
+      "error_message": null,
+      "metrics": {
+        "has_results": true,
+        "results_preview": "{'final_accuracy': 0.8749104309550619, 'accuracy': 0.8749104309550619, 'final_roc_auc': 0.9286522980338417, 'final_f1_positive': 0.715018656716418, 'final_balanced_accuracy': 0.7997861765367127, 'final_brier': 0.08762269834595554, 'test_size': 9769, 'test_correct': 8547, 'binom_test_p0': 0.78, 'binom_test_one_sided_p_value': 6.295352869426548e-129, 'clopper_pearson_one_sided_95_lower_bound': 0.8692709644416057, 'alpha': 0.05, 'seed': 42, 'baseline_accuracy': 0.8490121813901116, 'baseline_roc_auc",
+        "target_achieved": true,
+        "achieved_value": 0.8749104309550619,
+        "target_reason": "Achieved 0.8749, Target >= 0.78",
+        "has_report": true
+      }
+    }
+  ]
+}

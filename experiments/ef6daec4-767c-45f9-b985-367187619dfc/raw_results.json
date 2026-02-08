@@ -1,0 +1,73 @@
+{
+  "final_accuracy": 0.9062,
+  "final_macro_f1": 0.9061999061999062,
+  "final_model": {
+    "model_family": "LinearSVC",
+    "condition": "ngram_1_2_negation",
+    "ngram_range": [
+      1,
+      2
+    ],
+    "use_negation": true,
+    "C": 0.5,
+    "vectorizer_params": {
+      "max_features": 100000,
+      "max_df": 0.9,
+      "min_df": 5,
+      "sublinear_tf": true
+    }
+  },
+  "cv_results_linearsvc": {
+    "baseline_unigram": {
+      "best_C": 0.5,
+      "cv_mean_accuracy": 0.89312,
+      "cv_fold_accuracies": [
+        0.8956,
+        0.8912,
+        0.8984,
+        0.8896,
+        0.8908
+      ]
+    },
+    "ngram_1_2": {
+      "best_C": 0.5,
+      "cv_mean_accuracy": 0.90668,
+      "cv_fold_accuracies": [
+        0.9094,
+        0.907,
+        0.9084,
+        0.9056,
+        0.903
+      ]
+    },
+    "ngram_1_3": {
+      "best_C": 0.5,
+      "cv_mean_accuracy": 0.9074,
+      "cv_fold_accuracies": [
+        0.9118,
+        0.907,
+        0.9084,
+        0.9056,
+        0.9042
+      ]
+    },
+    "ngram_1_2_negation": {
+      "best_C": 0.5,
+      "cv_mean_accuracy": 0.90744,
+      "cv_fold_accuracies": [
+        0.9114,
+        0.9084,
+        0.9118,
+        0.9024,
+        0.9032
+      ]
+    }
+  },
+  "timing_seconds": 858.5736079216003,
+  "seed": 42,
+  "notes": {
+    "cv": "5-fold StratifiedKFold on train split only; paired splits reused across conditions.",
+    "test_usage": "Test split used only for final single evaluation for chosen config.",
+    "stat_tests": "Not computed here per agent constraints."
+  }
+}

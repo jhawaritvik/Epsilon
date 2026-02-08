@@ -1,0 +1,29 @@
+{
+  "suite_name": "mlagentbench",
+  "timestamp": "20260205_174556",
+  "total_tasks": 1,
+  "successful_tasks": 1,
+  "failed_tasks": 0,
+  "success_rate": 1.0,
+  "avg_execution_time": 200.9929780960083,
+  "total_time": 200.99316024780273,
+  "task_results": [
+    {
+      "task_id": "mlab_001",
+      "task_name": "House Prices Prediction",
+      "suite": "mlagentbench",
+      "success": true,
+      "execution_time_seconds": 200.9929780960083,
+      "improvement_percentage": null,
+      "error_message": null,
+      "metrics": {
+        "has_results": true,
+        "results_preview": "{'target_column_used': 'saleprice', 'rmse_baseline_original': 45959.3920344735, 'rmse_improved_original': 32074.476339098168, 'rmse_ratio_mean': 0.6978873070174546, 'baseline_rmse': 45959.3920344735, 'improved_rmse': 32074.476339098168, 'best_alpha': 10.0, 'bootstrap_n': 5000, 'bootstrap_p_value_one_sided_ratio_ge_0_90': 0.0358, 'bootstrap_ratio_ci_95_low': 0.4908026909670124, 'bootstrap_ratio_ci_95_high': 0.9161689909495225, 'rmse_baseline_log_space': 0.20662212538786534, 'rmse_improved_log_spa",
+        "target_achieved": true,
+        "achieved_value": 0.6978873070174546,
+        "target_reason": "Achieved 0.6979, Target <= 0.9",
+        "has_report": true
+      }
+    }
+  ]
+}
