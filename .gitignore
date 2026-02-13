@@ -5,8 +5,16 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Research Engine Artifacts
-# experiments/
+# Experiment output artifacts (generated at runtime)
+experiments/**/FINAL_REPORT.*
+experiments/**/comparison_plot.png
+experiments/**/dataset_used.json
+experiments/**/execution.log
+experiments/**/raw_results.json
+experiments/**/raw_results_backup.json
+experiments/**/run_experiment.py
+experiments/**/run_metrics.json
+experiments/**/.ipynb_checkpoints/
 artifacts/
 *.log
 latest_run_analysis.md
@@ -20,13 +28,6 @@ research_prompt.txt
 *.swo
 
 # Project Specific Artifacts
-dataset_used.json
-raw_results.json
-run_experiment.py
-execution.log
-experiment_summary.json
-final_report.md
-*.png
 experiments_cache/
 convert_report.py
 regenerate_report_tool.py
@@ -39,11 +40,18 @@ testing_eval.txt
 full_output.txt
 memory_failure.log
 
-# Keep architecture docs but ignore generated HTML reports
-!EPSILON_ARCHITECTURE.html
-
 # Supabase/Migration
 supabase/functions/
+
+# Paper build artifacts
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.out
+paper/*.synctex.gz
+paper/*.toc
 
 # OS specifics
 .DS_Store
@@ -53,3 +61,4 @@ Thumbs.db
 *.egg-info/
 dist/
 build/
+

@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Jhawar"
+    given-names: "Ritvik"
+    email: "jhawaritvik@gmail.com"
+title: "Epsilon: An Autonomous Research Engine with Epistemic Integrity for Scientific Discovery"
+version: 1.0.0
+date-released: 2026-02-13
+url: "https://github.com/jhawaritvik/Epsilon"
+license: MIT
+keywords:
+  - autonomous-research
+  - ai-agents
+  - epistemic-integrity
+  - multi-agent-systems
+  - scientific-discovery

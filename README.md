@@ -57,8 +57,8 @@ The final output is a self-contained HTML report containing:
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/epsilon.git
-    cd epsilon
+    git clone https://github.com/jhawaritvik/Epsilon.git
+    cd Epsilon
     ```
 
 2.  **Install Dependencies**
